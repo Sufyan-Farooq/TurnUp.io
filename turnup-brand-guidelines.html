@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>turnUp.io — Brand Guidelines</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --ink:#1B1140;
+    --ink-soft:#2A1B5E;
+    --violet:#6C3CE9;
+    --violet-deep:#4E27B8;
+    --coral:#FF5C66;
+    --lime:#C6FF5C;
+    --gold:#FFC247;
+    --cloud:#F7F4FF;
+    --cloud-dim:#E7E0FB;
+    --ink-text:#241650;
+    --muted:#6E64A0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cloud);
+    color:var(--ink-text);
+    font-family:'Manrope',sans-serif;
+    line-height:1.55;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:0 48px 120px;}
+
+  /* ---------- COVER ---------- */
+  .cover{
+    background:radial-gradient(120% 140% at 15% 0%, var(--violet) 0%, var(--ink) 55%, var(--ink) 100%);
+    color:var(--cloud);
+    padding:96px 48px 80px;
+    position:relative;
+    overflow:hidden;
+  }
+  .cover::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      radial-gradient(6px 6px at 92% 18%, var(--gold) 0, transparent 60%),
+      radial-gradient(8px 8px at 85% 65%, var(--coral) 0, transparent 60%),
+      radial-gradient(5px 5px at 75% 32%, var(--lime) 0, transparent 60%),
+      radial-gradient(7px 7px at 96% 80%, var(--lime) 0, transparent 60%),
+      radial-gradient(5px 5px at 65% 12%, var(--coral) 0, transparent 60%);
+    opacity:.9;
+  }
+  .cover-inner{max-width:1040px;margin:0 auto;position:relative;}
+  .eyebrow{
+    font-family:'Space Mono',monospace;
+    font-size:13px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--lime);
+    margin:0 0 18px;
+  }
+  .cover h1{
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:clamp(48px,7vw,84px);
+    line-height:.98;
+    margin:0 0 24px;
+    letter-spacing:-.01em;
+  }
+  .cover p.lede{
+    font-size:19px;
+    max-width:560px;
+    color:var(--cloud-dim);
+    margin:0 0 40px;
+  }
+  .cover-meta{
+    display:flex; gap:40px; flex-wrap:wrap;
+    border-top:1px solid rgba(247,244,255,.18);
+    padding-top:24px;
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    color:var(--cloud-dim);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+  }
+
+  /* ---------- BOARD PATH NAV ---------- */
+  .section{
+    position:relative;
+    padding:88px 0 0 88px;
+  }
+  .section:last-of-type{padding-bottom:20px;}
+  .track{
+    position:absolute;
+    left:18px; top:0; bottom:0;
+    width:2px;
+    background-image:linear-gradient(var(--cloud-dim) 60%, transparent 0%);
+    background-size:2px 14px;
+    background-repeat:repeat-y;
+  }
+  .space{
+    position:absolute;
+    left:0; top:90px;
+    width:38px; height:38px;
+    border-radius:50%;
+    background:var(--ink);
+    color:var(--cloud);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    border:3px solid var(--cloud);
+    box-shadow:0 0 0 2px var(--ink);
+  }
+  .space.violet{background:var(--violet);}
+  .space.coral{background:var(--coral); color:var(--ink);}
+  .space.gold{background:var(--gold); color:var(--ink);}
+  .space.lime{background:var(--lime); color:var(--ink);}
+
+  .kicker{
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--muted);
+    margin:0 0 8px;
+  }
+  h2.sec-title{
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:36px;
+    margin:0 0 16px;
+    color:var(--ink);
+  }
+  .sec-intro{
+    font-size:16px;
+    color:var(--muted);
+    max-width:620px;
+    margin:0 0 36px;
+  }
+
+  /* ---------- POSITIONING ---------- */
+  .trait-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:8px;}
+  .trait{
+    background:#fff;
+    border:1.5px solid var(--cloud-dim);
+    border-radius:16px;
+    padding:22px 24px;
+  }
+  .trait h3{
+    font-family:'Fredoka',sans-serif;
+    font-size:18px;
+    margin:0 0 6px;
+    color:var(--ink);
+  }
+  .trait p{margin:0; font-size:14px; color:var(--muted);}
+  .mission-card{
+    background:linear-gradient(135deg, var(--violet) 0%, var(--violet-deep) 100%);
+    color:var(--cloud);
+    border-radius:20px;
+    padding:36px 40px;
+    margin-bottom:28px;
+  }
+  .mission-card .kicker{color:var(--lime);}
+  .mission-card p{
+    font-family:'Fredoka',sans-serif;
+    font-size:24px;
+    font-weight:500;
+    line-height:1.35;
+    margin:0;
+  }
+
+  /* ---------- LOGO ---------- */
+  .logo-stage{
+    background:var(--ink);
+    border-radius:20px;
+    padding:64px 40px;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:24px;
+  }
+  .wordmark{display:flex; align-items:center; gap:14px;}
+  .mark{width:56px; height:56px;}
+  .wordmark span{
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:48px;
+    color:var(--cloud);
+  }
+  .wordmark span.up{color:var(--lime);}
+  .logo-row{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:36px;}
+  .logo-tile{
+    background:#fff; border:1.5px solid var(--cloud-dim); border-radius:16px;
+    padding:32px; text-align:center;
+  }
+  .logo-tile.dark{background:var(--ink);}
+  .logo-tile .mark{width:44px; height:44px; margin:0 auto 12px;}
+  .logo-tile label{
+    display:block; font-family:'Space Mono',monospace; font-size:11px;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:14px;
+  }
+  .logo-tile.dark label{color:var(--cloud-dim);}
+
+  .dodont{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .dodont .card{border-radius:16px; padding:24px; }
+  .dodont .do{background:#EFFBE2; border:1.5px solid var(--lime);}
+  .dodont .dont{background:#FFE9EA; border:1.5px solid var(--coral);}
+  .dodont .tag{
+    font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:.08em; font-weight:700; margin-bottom:10px; display:block;
+  }
+  .dodont .do .tag{color:#3D7A0A;}
+  .dodont .dont .tag{color:#B8232E;}
+  .dodont ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-text);}
+  .dodont li{margin-bottom:6px;}
+
+  /* ---------- COLOR ---------- */
+  .swatch-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  .swatch{border-radius:16px; overflow:hidden; border:1.5px solid var(--cloud-dim);}
+  .swatch .fill{height:110px;}
+  .swatch .info{background:#fff; padding:14px 16px;}
+  .swatch .info .name{font-family:'Fredoka',sans-serif; font-size:16px; font-weight:500; color:var(--ink); margin:0 0 2px;}
+  .swatch .info .hex{font-family:'Space Mono',monospace; font-size:12px; color:var(--muted);}
+  .swatch .info .role{font-size:12px; color:var(--muted); margin-top:6px;}
+
+  /* ---------- TYPE ---------- */
+  .type-sample{
+    background:#fff; border:1.5px solid var(--cloud-dim); border-radius:16px;
+    padding:32px 36px; margin-bottom:18px;
+  }
+  .type-sample .role{
+    font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--violet); margin:0 0 14px;
+  }
+  .type-sample .big{font-family:'Fredoka',sans-serif; font-weight:600; font-size:40px; color:var(--ink); margin:0 0 8px;}
+  .type-sample .body-ex{font-family:'Manrope',sans-serif; font-size:16px; color:var(--ink-text); max-width:560px; margin:0;}
+  .type-sample .mono-ex{font-family:'Space Mono',monospace; font-size:20px; color:var(--ink); letter-spacing:.04em;}
+  .type-foot{font-size:13px; color:var(--muted); margin-top:14px;}
+
+  /* ---------- TOKENS / PLAYER COLORS ---------- */
+  .token-row{display:flex; gap:18px; flex-wrap:wrap; margin-bottom:28px;}
+  .token{
+    width:84px; text-align:center;
+  }
+  .token .piece{
+    width:56px; height:56px; border-radius:50% 50% 50% 4px;
+    margin:0 auto 10px;
+    transform:rotate(-45deg);
+    box-shadow:inset 0 -6px 0 rgba(0,0,0,.12);
+  }
+  .token .piece-inner{
+    width:100%; height:100%; border-radius:50% 50% 50% 4px;
+  }
+  .token .lbl{font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase;}
+  .p-red .piece{background:#FF5C66;}
+  .p-blue .piece{background:#4E8CFF;}
+  .p-green .piece{background:#3FBF7F;}
+  .p-yellow .piece{background:#FFC247;}
+
+  /* ---------- VOICE ---------- */
+  .voice-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .quote-card{
+    background:#fff; border:1.5px solid var(--cloud-dim); border-radius:16px; padding:24px;
+  }
+  .quote-card .kicker{margin-bottom:10px;}
+  .quote-card p.line{
+    font-family:'Fredoka',sans-serif; font-size:17px; color:var(--ink); margin:0 0 6px;
+  }
+  .quote-card p.context{font-size:13px; color:var(--muted); margin:0;}
+
+  /* ---------- UI PREVIEW ---------- */
+  .ui-stage{
+    background:var(--ink); border-radius:20px; padding:36px; margin-bottom:8px;
+  }
+  .ui-row{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;}
+  .btn{
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:15px;
+    padding:13px 26px; border-radius:14px; border:none; cursor:default;
+  }
+  .btn-primary{background:var(--lime); color:var(--ink);}
+  .btn-secondary{background:transparent; color:var(--cloud); border:2px solid var(--violet);}
+  .chat-bubble{
+    background:var(--ink-soft); color:var(--cloud); padding:12px 16px; border-radius:14px 14px 14px 4px;
+    max-width:240px; font-size:14px;
+  }
+  .chat-bubble .who{font-family:'Space Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:4px;}
+  .lobby-card{
+    background:var(--ink-soft); border-radius:16px; padding:18px 20px; width:230px;
+  }
+  .lobby-card .room{font-family:'Space Mono',monospace; color:var(--lime); font-size:13px; margin-bottom:10px;}
+  .avatars{display:flex; gap:-8px;}
+  .av{width:30px; height:30px; border-radius:50%; border:2px solid var(--ink-soft); margin-left:-8px;}
+  .av:first-child{margin-left:0;}
+
+  footer{
+    text-align:center; padding:60px 0 0; color:var(--muted); font-size:13px;
+    font-family:'Space Mono',monospace;
+  }
+</style>
+</head>
+<body>
+
+  <div class="cover">
+    <div class="cover-inner">
+      <p class="eyebrow">Brand guidelines — v1.0</p>
+      <h1>turn<span style="color:var(--lime)">Up</span>.io</h1>
+      <p class="lede">Your turn. Their turn. Everyone's turn up. The online home for game night — Monopoly, Ludo, UNO and Snake &amp; Ladder, played live with the people you'd actually want in the room.</p>
+      <div class="cover-meta">
+        <span>Category — multiplayer party games</span>
+        <span>Tone — loud, warm, quick on its feet</span>
+        <span>Built for — friend groups, not solo grinders</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- 01 POSITIONING -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space violet">01</div>
+      <p class="kicker">Positioning</p>
+      <h2 class="sec-title">Why we exist</h2>
+      <p class="sec-intro">Richup proved people will play board games with strangers on the internet. turnUp is built for a narrower, warmer case: getting your actual friends into a room when you can't all be in the same room.</p>
+
+      <div class="mission-card">
+        <p class="kicker">Mission</p>
+        <p>Turn any group chat into a game night in under sixty seconds.</p>
+      </div>
+
+      <div class="trait-grid">
+        <div class="trait">
+          <h3>Loud, not corporate</h3>
+          <p>We sound like the friend who suggests the game, not the app that hosts it.</p>
+        </div>
+        <div class="trait">
+          <h3>Nostalgic, not retro</h3>
+          <p>The games are old. The product never feels old. No skeuomorphic board textures.</p>
+        </div>
+        <div class="trait">
+          <h3>Fast over fancy</h3>
+          <p>Every screen exists to get a dice in someone's hand quicker.</p>
+        </div>
+        <div class="trait">
+          <h3>Chat is the room</h3>
+          <p>Voice and text aren't a feature bolted on — they're why anyone stays past round one.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 02 LOGO -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space coral">02</div>
+      <p class="kicker">Logo &amp; mark</p>
+      <h2 class="sec-title">The turn icon</h2>
+      <p class="sec-intro">The mark is a single curved arrow closing a loop — a turn, a spinner, a token rounding the board. It works as a standalone app icon and as the dot that finishes the wordmark.</p>
+
+      <div class="logo-stage">
+        <div class="wordmark">
+          <svg class="mark" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="28" cy="28" r="26" fill="#6C3CE9"/>
+            <path d="M18 22 A11 11 0 1 1 18 35" stroke="#C6FF5C" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M13 18 L18 22 L13 27" stroke="#C6FF5C" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <span>turn<span class="up">Up</span></span>
+        </div>
+      </div>
+
+      <div class="logo-row">
+        <div class="logo-tile">
+          <svg class="mark" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="28" cy="28" r="26" fill="#FF5C66"/>
+            <path d="M18 22 A11 11 0 1 1 18 35" stroke="#1B1140" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M13 18 L18 22 L13 27" stroke="#1B1140" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <label>Coral variant — promo &amp; seasonal</label>
+        </div>
+        <div class="logo-tile dark">
+          <svg class="mark" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="28" cy="28" r="26" fill="#FFC247"/>
+            <path d="M18 22 A11 11 0 1 1 18 35" stroke="#1B1140" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M13 18 L18 22 L13 27" stroke="#1B1140" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <label>Gold variant — on dark surfaces</label>
+        </div>
+      </div>
+
+      <div class="dodont">
+        <div class="card do">
+          <span class="tag">Do</span>
+          <ul>
+            <li>Keep 1x clearspace (the icon's own radius) on every side</li>
+            <li>Use the lime-on-violet primary mark whenever background allows</li>
+            <li>Let the mark sit alone as an app icon — no wordmark crammed in</li>
+          </ul>
+        </div>
+        <div class="card dont">
+          <span class="tag">Don't</span>
+          <ul>
+            <li>Recolor the loop to anything outside the palette</li>
+            <li>Stretch, skew or add a drop shadow to the mark</li>
+            <li>Place the wordmark on busy photography without a solid plate</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 03 COLOR -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space gold">03</div>
+      <p class="kicker">Color system</p>
+      <h2 class="sec-title">Night sky, loud confetti</h2>
+      <p class="sec-intro">Ink Indigo is the room. Riot Violet is us. Coral, Lime and Gold are the confetti — used in small, bright doses, never as backgrounds.</p>
+
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="fill" style="background:#1B1140;"></div>
+          <div class="info"><p class="name">Ink Indigo</p><p class="hex">#1B1140</p><p class="role">Primary dark surface — app background, headers</p></div>
+        </div>
+        <div class="swatch">
+          <div class="fill" style="background:#6C3CE9;"></div>
+          <div class="info"><p class="name">Riot Violet</p><p class="hex">#6C3CE9</p><p class="role">Core brand color — logo, links, active states</p></div>
+        </div>
+        <div class="swatch">
+          <div class="fill" style="background:#FF5C66;"></div>
+          <div class="info"><p class="name">Coral Pop</p><p class="hex">#FF5C66</p><p class="role">Alerts, "your turn" prompts, urgency</p></div>
+        </div>
+        <div class="swatch">
+          <div class="fill" style="background:#C6FF5C;"></div>
+          <div class="info"><p class="name">Lime Zing</p><p class="hex">#C6FF5C</p><p class="role">Primary CTA, wins, positive states</p></div>
+        </div>
+        <div class="swatch">
+          <div class="fill" style="background:#FFC247;"></div>
+          <div class="info"><p class="name">Sun Gold</p><p class="hex">#FFC247</p><p class="role">Highlights, dice, achievement moments</p></div>
+        </div>
+        <div class="swatch">
+          <div class="fill" style="background:#F7F4FF; border-bottom:1px solid #E7E0FB;"></div>
+          <div class="info"><p class="name">Cloud</p><p class="hex">#F7F4FF</p><p class="role">Light surfaces, text on dark, app icon ground</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04 TYPE -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space lime">04</div>
+      <p class="kicker">Typography</p>
+      <h2 class="sec-title">Round headlines, sharp scores</h2>
+      <p class="sec-intro">Fredoka carries the personality. Manrope carries the reading. Space Mono carries the numbers — room codes, timers, scoreboards.</p>
+
+      <div class="type-sample">
+        <p class="role">Display — Fredoka 600</p>
+        <p class="big">Roll the dice</p>
+        <p class="type-foot">Headlines, the wordmark, big in-game moments. Never set in body copy — it gets tiring past a few words.</p>
+      </div>
+      <div class="type-sample">
+        <p class="role">Body / UI — Manrope 400–700</p>
+        <p class="body-ex">Manrope handles every interface label, chat message and settings screen. It stays legible at small sizes on mobile, where most games actually get played.</p>
+      </div>
+      <div class="type-sample">
+        <p class="role">Utility — Space Mono</p>
+        <p class="mono-ex">ROOM CODE: 7XQ-991 · TURN 04:12 · SCORE 1,280</p>
+        <p class="type-foot">Reserved for anything that looks like a stat: timers, room codes, leaderboards, dice values.</p>
+      </div>
+    </div>
+
+    <!-- 05 GAME TOKENS -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space violet">05</div>
+      <p class="kicker">Player identity</p>
+      <h2 class="sec-title">The four tokens</h2>
+      <p class="sec-intro">Separate from the brand palette: every player is always one of four fixed token colors, matching the physical pieces people already know from Ludo and Monopoly. Never reassign these or use them for UI chrome.</p>
+
+      <div class="token-row">
+        <div class="token p-red"><div class="piece"><div class="piece-inner"></div></div><p class="lbl">Player red</p></div>
+        <div class="token p-blue"><div class="piece"><div class="piece-inner"></div></div><p class="lbl">Player blue</p></div>
+        <div class="token p-green"><div class="piece"><div class="piece-inner"></div></div><p class="lbl">Player green</p></div>
+        <div class="token p-yellow"><div class="piece"><div class="piece-inner"></div></div><p class="lbl">Player yellow</p></div>
+      </div>
+    </div>
+
+    <!-- 06 VOICE -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space coral">06</div>
+      <p class="kicker">Voice &amp; tone</p>
+      <h2 class="sec-title">Talk like a player, not a platform</h2>
+      <p class="sec-intro">Sentence case, active verbs, zero corporate filler. Errors explain what happened in plain words. Empty states invite the next move instead of apologizing.</p>
+
+      <div class="voice-grid">
+        <div class="quote-card">
+          <p class="kicker" style="color:#3D7A0A;">Say this</p>
+          <p class="line">"Your turn, champ."</p>
+          <p class="context">Turn prompt — short, personal, no exclamation needed.</p>
+        </div>
+        <div class="quote-card">
+          <p class="kicker" style="color:#B8232E;">Not this</p>
+          <p class="line">"It is now your turn to play!"</p>
+          <p class="context">Reads like a system notice, not a friend.</p>
+        </div>
+        <div class="quote-card">
+          <p class="kicker" style="color:#3D7A0A;">Say this</p>
+          <p class="line">"Connection dropped. Reconnect to keep your spot."</p>
+          <p class="context">States what happened, then what to do.</p>
+        </div>
+        <div class="quote-card">
+          <p class="kicker" style="color:#B8232E;">Not this</p>
+          <p class="line">"Error: WebSocket connection terminated unexpectedly."</p>
+          <p class="context">Never surface system or network jargon to players.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 07 UI -->
+    <div class="section">
+      <div class="track"></div>
+      <div class="space gold">07</div>
+      <p class="kicker">In product</p>
+      <h2 class="sec-title">How it feels in the room</h2>
+      <p class="sec-intro">Dark Ink Indigo surfaces by default — it reads as a room at night, makes every token and chat bubble pop, and is easy on the eyes for long sessions.</p>
+
+      <div class="ui-stage">
+        <div class="ui-row" style="margin-bottom:24px;">
+          <button class="btn btn-primary">Start game</button>
+          <button class="btn btn-secondary">Invite friends</button>
+        </div>
+        <div class="ui-row">
+          <div class="chat-bubble">
+            <p class="who">PRIYA</p>
+            no way you landed on my hotel again 😭
+          </div>
+          <div class="lobby-card">
+            <p class="room">ROOM · 7XQ-991</p>
+            <div class="avatars">
+              <div class="av" style="background:#FF5C66;"></div>
+              <div class="av" style="background:#4E8CFF;"></div>
+              <div class="av" style="background:#3FBF7F;"></div>
+              <div class="av" style="background:#FFC247;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>turnUp.io — brand guidelines v1.0 — built for game night</footer>
+  </div>
+
+</body>
+</html>

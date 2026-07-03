@@ -1,0 +1,90 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  GUEST
+  ADMIN
+}
+
+enum GameType {
+  SNAKES_LADDERS
+  LUDO
+  UNO
+  MONOPOLY
+}
+
+enum MatchStatus {
+  CREATING
+  PLAYING
+  ENDED
+  ABANDONED
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  username     String        @db.VarChar(50)
+  email        String?       @unique @db.VarChar(255)
+  passwordHash String?       @map("password_hash") @db.VarChar(255)
+  role         Role          @default(USER)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  
+  matches      MatchPlayer[]
+  wonMatches   MatchHistory[] @relation("MatchWinner")
+  gameStats    GameStat[]
+
+  @@index([username])
+  @@map("users")
+}
+
+model MatchHistory {
+  id        String        @id @default(uuid()) @db.Uuid
+  gameType  GameType      @map("game_type")
+  status    MatchStatus   @default(CREATING)
+  winnerId  String?       @map("winner_id") @db.Uuid
+  startedAt DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  endedAt   DateTime?     @map("ended_at") @db.Timestamptz
+
+  winner    User?         @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  players   MatchPlayer[]
+
+  @@map("match_history")
+}
+
+model MatchPlayer {
+  matchId  String       @map("match_id") @db.Uuid
+  userId   String       @map("user_id") @db.Uuid
+  rank     Int?
+  score    Int          @default(0)
+  joinedAt DateTime     @default(now()) @map("joined_at") @db.Timestamptz
+
+  match    MatchHistory @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, userId])
+  @@index([userId])
+  @@map("match_players")
+}
+
+model GameStat {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  gameType    GameType @map("game_type")
+  gamesPlayed Int      @default(0) @map("games_played")
+  gamesWon    Int      @default(0) @map("games_won")
+  totalPoints Int      @default(0) @map("total_points")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameType])
+  @@index([gameType, gamesWon(sort: Desc)])
+  @@map("game_stats")
+}
