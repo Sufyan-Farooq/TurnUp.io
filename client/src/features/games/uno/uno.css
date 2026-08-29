@@ -1,0 +1,123 @@
+/*
+ * Scoped styles for the Uno feature slice.
+ *
+ * Global classes reused as-is from client/src/index.css (NOT redefined here):
+ *   .uno-table, .uno-card, .uno-card.card-{red,green,blue,yellow,wild},
+ *   .uno-card-center-symbol, .color-picker-overlay, .color-picker-modal,
+ *   .badge-uno, .glass-panel, .btn-primary, .btn-secondary
+ *
+ * Everything below is new, scoped to this feature, for pieces the global
+ * stylesheet does not already cover.
+ */
+
+.uno-card-back-mini {
+  /* layout/paint handled inline (matches original App.tsx implementation);
+     this class is kept as a hook for the fan-of-cards container only. */
+}
+
+.uno-color-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.uno-opponent-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+}
+
+.uno-opponent-seat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.uno-opponent-name {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.uno-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.uno-turn-badge {
+  font-size: 9px;
+  background-color: var(--accent-green);
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.uno-opponent-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.uno-action-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.uno-hand-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.uno-hand-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 20px 40px;
+  overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.uno-selection-bar {
+  display: flex;
+  gap: 16px;
+  padding: 8px 20px;
+  align-items: center;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1.5px solid var(--accent-purple);
+  animation: slideUp 0.2s ease-out;
+}
+
+.uno-drawn-badge {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--accent-gold);
+  color: #000;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 10;
+}

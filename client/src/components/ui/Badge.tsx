@@ -1,6 +1,6 @@
 import React from 'react';
 
-type Variant = 'host' | 'uno' | 'turn' | 'mortgaged' | 'neutral';
+type Variant = 'host' | 'uno' | 'turn' | 'mortgaged' | 'neutral' | 'purple' | 'red';
 
 interface BadgeProps {
   variant?: Variant;
@@ -15,6 +15,8 @@ const VARIANT_CLASS: Record<Variant, string> = {
   turn: 'badge-turn',
   mortgaged: 'badge-mortgaged',
   neutral: '',
+  purple: 'badge-purple',
+  red: 'badge-mortgaged',
 };
 
 export const Badge: React.FC<BadgeProps> = ({ variant = 'neutral', icon, children, className }) => (

@@ -1,0 +1,14 @@
+/* Scoped extras for the Snakes & Ladders feature. The base grid/cell/token
+   classes (.sl-board-grid, .sl-cell, .sl-cell-num, .cell-color-0..3,
+   .player-token, .token-0..3) are defined globally in client/src/index.css
+   and are intentionally reused as-is here, not redefined. */
+
+.sl-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.sl-action-bar__waiting {
+  color: var(--text-secondary);
+}

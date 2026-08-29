@@ -1,0 +1,32 @@
+/* Scoped extras for the Ludo feature. The base grid/cell/token classes
+   (.ludo-board-grid, .ludo-cell, .base-red/.base-green/.base-yellow/.base-blue/
+   .base-orange/.base-purple, .base-inner, .base-pocket, .path-*, .start-cell,
+   .ludo-center, .ludo-token, .color-*) are defined globally in
+   client/src/index.css and are intentionally reused as-is here. */
+
+.ludo-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ludo-action-bar__waiting {
+  color: var(--text-secondary);
+}
+
+.ludo-action-bar__prompt {
+  padding: 12px 24px;
+  border-radius: 12px;
+  background: rgba(123, 44, 191, 0.1);
+  border: 1.5px solid var(--accent-purple);
+  text-align: center;
+}
+
+.ludo-action-bar__prompt-text {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

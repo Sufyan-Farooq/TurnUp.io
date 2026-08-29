@@ -12,10 +12,25 @@ export const PLAYER_COLORS = [
 
 export type PlayerColorId = (typeof PLAYER_COLORS)[number]['id'];
 
-export function getPlayerColorHex(colorId: string | undefined): string {
-  return PLAYER_COLORS.find((c) => c.id === colorId)?.hex ?? PLAYER_COLORS[0].hex;
+export function getPlayerColorHex(colorId: string | undefined, indexFallback = 0): string {
+  return (
+    PLAYER_COLORS.find((c) => c.id === colorId)?.hex ??
+    getPlayerColorByIndex(indexFallback).hex
+  );
 }
 
 export function getPlayerColorByIndex(index: number) {
   return PLAYER_COLORS[index % PLAYER_COLORS.length];
+}
+
+/** Ordered hex palette for a lobby of the given size (Ludo boards use 4 or 6 seats). */
+export function getPlayerColorPalette(maxPlayers?: number): string[] {
+  const count = maxPlayers === 6 ? 6 : 4;
+  return PLAYER_COLORS.slice(0, count).map((c) => c.hex);
+}
+
+/** Ludo base/path color name for a given base index, matching the CSS .base-* classes. */
+export function getLudoColorName(baseIdx: number, maxPlayers?: number): string {
+  const palette = maxPlayers === 6 ? PLAYER_COLORS : PLAYER_COLORS.slice(0, 4);
+  return palette[baseIdx]?.id ?? 'red';
 }
