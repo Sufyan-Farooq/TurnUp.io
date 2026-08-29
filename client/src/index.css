@@ -153,6 +153,31 @@ body {
   box-shadow: 0 8px 24px var(--coral-glow);
 }
 
+/* Ghost — transparent, minimal chrome for tertiary actions */
+.btn-ghost {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 11px 18px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.06); color: var(--cloud); }
+
+.btn-primary:disabled, .btn-secondary:disabled, .btn-danger:disabled, .btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  filter: none !important;
+}
+
+.btn-icon { display: inline-flex; align-items: center; margin-right: 6px; }
+.btn-icon svg { display: block; }
+
 /* ================================================
    GLASS PANELS
    ================================================ */
@@ -1181,6 +1206,11 @@ input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
   gap: 10px;
   animation: fadeInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+.game-toast--error   { border-color: var(--coral); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 18px var(--coral-glow); color: var(--coral); }
+.game-toast--success { border-color: var(--lime);  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 18px var(--lime-glow);  color: var(--lime); }
+.game-toast--warning  { border-color: var(--gold);  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 18px var(--gold-glow);  color: var(--gold); }
+.game-toast--info     { border-color: var(--violet); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 18px var(--violet-glow); color: var(--cloud); }
+.game-toast span { color: var(--cloud); }
 
 /* ================================================
    ROOMS MODAL / GAME SELECTION MODAL
@@ -1239,6 +1269,14 @@ input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
   color: var(--coral);
 }
 .modal-body { overflow-y: auto; padding: 20px 24px; }
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(108, 60, 233, 0.12);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
 
 /* ================================================
    GAME TYPE SELECTION CARDS
