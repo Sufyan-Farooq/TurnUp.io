@@ -1,7 +1,14 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'turnup_portal_auth_secret_key_123!';
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    'FATAL: JWT_SECRET environment variable is not set. Refusing to start with an insecure default secret. ' +
+    'Set JWT_SECRET to a long, random value before starting the server.'
+  );
+}
+
+const JWT_SECRET: string = process.env.JWT_SECRET;
 
 /**
  * Hash password using Node's native memory-hard scrypt algorithm

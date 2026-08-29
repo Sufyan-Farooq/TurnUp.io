@@ -1,5 +1,5 @@
 import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent } from './interfaces';
-import { DeterministicRNG } from './rng';
+import { createRngFromState } from './rng';
 
 export interface SnakesLaddersState extends GameState {
   gameSpecificState: {
@@ -80,7 +80,7 @@ export class SnakesLaddersRuleset implements IGameRuleset<SnakesLaddersState> {
     }
 
     const playerId = action.playerId;
-    const rng = new DeterministicRNG(parseInt(currentState.rngState, 10));
+    const rng = createRngFromState(currentState.rngState);
     const roll = rng.rollRange(1, 6);
     const events: GameEvent[] = [];
 

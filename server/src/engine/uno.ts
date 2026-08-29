@@ -1,5 +1,5 @@
 import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent } from './interfaces';
-import { DeterministicRNG } from './rng';
+import { DeterministicRNG, createRngFromState } from './rng';
 
 export interface UnoCard {
   color: 'red' | 'green' | 'blue' | 'yellow' | 'wild';
@@ -141,7 +141,7 @@ export class UnoRuleset implements IGameRuleset<UnoState> {
 
   public processAction(currentState: UnoState, action: GameAction): ActionResult<UnoState> {
     const { type, playerId, payload } = action;
-    const rng = new DeterministicRNG(parseInt(currentState.rngState, 10));
+    const rng = createRngFromState(currentState.rngState);
 
     // Handle out-of-turn actions first
     if (type === 'DECLARE_UNO') {

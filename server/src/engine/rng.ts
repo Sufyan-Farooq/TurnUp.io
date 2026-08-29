@@ -51,3 +51,16 @@ export class DeterministicRNG {
     this.state = state;
   }
 }
+
+/**
+ * Safely reconstructs a DeterministicRNG from a persisted rngState string.
+ * Guards against a corrupted/non-numeric rngState producing a broken (NaN-seeded) RNG,
+ * which would otherwise silently make every subsequent roll/shuffle undefined behavior.
+ */
+export function createRngFromState(rngState: string): DeterministicRNG {
+  const seed = parseInt(rngState, 10);
+  if (!Number.isFinite(seed)) {
+    throw new Error(`Internal engine error: corrupted rngState "${rngState}" could not be parsed into a numeric seed.`);
+  }
+  return new DeterministicRNG(seed);
+}

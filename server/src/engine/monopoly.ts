@@ -1,5 +1,5 @@
 import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent } from './interfaces';
-import { DeterministicRNG } from './rng';
+import { DeterministicRNG, createRngFromState } from './rng';
 
 interface MonopolySpace {
   name: string;
@@ -242,7 +242,7 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
       return { isValid: false, error: 'Not your turn.', events: [] };
     }
 
-    const rng = new DeterministicRNG(parseInt(currentState.rngState, 10));
+    const rng = createRngFromState(currentState.rngState);
     const events: GameEvent[] = [];
 
     // Helper to check debt / negative cash transition (mutates state in-place)
@@ -477,6 +477,9 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
       }
 
       const spaceIndex = payload.spaceIndex;
+      if (typeof spaceIndex !== 'number' || !Number.isInteger(spaceIndex) || spaceIndex < 0 || spaceIndex >= MONOPOLY_BOARD.length) {
+        return { isValid: false, error: 'Invalid property index.', events: [] };
+      }
       const propState = currentState.gameSpecificState.properties[spaceIndex];
       const space = MONOPOLY_BOARD[spaceIndex];
 
@@ -546,6 +549,9 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
       }
 
       const spaceIndex = payload.spaceIndex;
+      if (typeof spaceIndex !== 'number' || !Number.isInteger(spaceIndex) || spaceIndex < 0 || spaceIndex >= MONOPOLY_BOARD.length) {
+        return { isValid: false, error: 'Invalid property index.', events: [] };
+      }
       const propState = currentState.gameSpecificState.properties[spaceIndex];
       const space = MONOPOLY_BOARD[spaceIndex];
 
@@ -589,6 +595,9 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
 
     if (type === 'SELL_PROPERTY') {
       const spaceIndex = payload.spaceIndex;
+      if (typeof spaceIndex !== 'number' || !Number.isInteger(spaceIndex) || spaceIndex < 0 || spaceIndex >= MONOPOLY_BOARD.length) {
+        return { isValid: false, error: 'Invalid property index.', events: [] };
+      }
       const propState = currentState.gameSpecificState.properties[spaceIndex];
       const space = MONOPOLY_BOARD[spaceIndex];
 
@@ -642,6 +651,9 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
 
     if (type === 'BUILD_HOUSE') {
       const spaceIndex = payload.spaceIndex;
+      if (typeof spaceIndex !== 'number' || !Number.isInteger(spaceIndex) || spaceIndex < 0 || spaceIndex >= MONOPOLY_BOARD.length) {
+        return { isValid: false, error: 'Invalid property index.', events: [] };
+      }
       const propState = currentState.gameSpecificState.properties[spaceIndex];
       const space = MONOPOLY_BOARD[spaceIndex];
 
@@ -722,6 +734,9 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
 
     if (type === 'SELL_HOUSE') {
       const spaceIndex = payload.spaceIndex;
+      if (typeof spaceIndex !== 'number' || !Number.isInteger(spaceIndex) || spaceIndex < 0 || spaceIndex >= MONOPOLY_BOARD.length) {
+        return { isValid: false, error: 'Invalid property index.', events: [] };
+      }
       const propState = currentState.gameSpecificState.properties[spaceIndex];
       const space = MONOPOLY_BOARD[spaceIndex];
 

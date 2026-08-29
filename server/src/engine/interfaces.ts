@@ -96,6 +96,11 @@ export class GameEngineManager {
   private currentState!: GameState;
   private ruleset: IGameRuleset;
   private actionLog: GameAction[] = [];
+  // Cap the in-memory action log so long-running games don't grow this array unbounded.
+  // historyLength on the state still reflects the TOTAL number of actions ever applied,
+  // it does not need to equal actionLog.length.
+  private static readonly MAX_ACTION_LOG_ENTRIES = 500;
+  private totalActionsApplied = 0;
 
   constructor(ruleset: IGameRuleset) {
     this.ruleset = ruleset;
@@ -122,7 +127,13 @@ export class GameEngineManager {
     if (result.isValid && result.newState) {
       this.currentState = result.newState;
       this.actionLog.push(action);
-      this.currentState.historyLength = this.actionLog.length;
+      // Cap growth: keep only the most recent N entries so long-running games
+      // don't accumulate an unbounded actionLog in memory.
+      if (this.actionLog.length > GameEngineManager.MAX_ACTION_LOG_ENTRIES) {
+        this.actionLog.splice(0, this.actionLog.length - GameEngineManager.MAX_ACTION_LOG_ENTRIES);
+      }
+      this.totalActionsApplied++;
+      this.currentState.historyLength = this.totalActionsApplied;
 
       // 3. Post-Process Win Conditions
       const winner = this.ruleset.checkWinConditions(this.currentState);

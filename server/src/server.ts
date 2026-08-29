@@ -1,4 +1,6 @@
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
@@ -40,13 +42,29 @@ interface GameRoom {
   seed: number;
   voteKick?: VoteKickSession;
   bannedPlayerIds: Set<string>; // Players kicked via vote — cannot rejoin this session
+  endedAt?: number; // Timestamp (ms) when the room's status transitioned to ENDED, for lifecycle sweep
+}
+
+// CORS allow-list configuration. Falls back to the Vite dev server origin if unset,
+// and warns loudly since that fallback is not appropriate for production.
+const corsOriginEnv = process.env.CORS_ORIGIN;
+const corsOrigins = corsOriginEnv
+  ? corsOriginEnv.split(',').map(o => o.trim()).filter(Boolean)
+  : ['http://localhost:5173'];
+
+if (!corsOriginEnv) {
+  console.warn(
+    '[WARNING] CORS_ORIGIN environment variable is not set. ' +
+    `Falling back to the local dev default (${corsOrigins.join(', ')}). ` +
+    'This is NOT suitable for production — set CORS_ORIGIN to a comma-separated allow-list of your real client origin(s).'
+  );
 }
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Allow all origins for local testing
+    origin: corsOrigins,
     methods: ['GET', 'POST']
   },
   pingInterval: 25000,
@@ -61,11 +79,15 @@ const rooms: Record<string, GameRoom> = {};
 const playerToRoom: Record<string, string> = {}; // playerId -> roomId
 const disconnectTimers: Record<string, NodeJS.Timeout> = {};
 
+app.use(helmet());
 app.use(express.json());
 
-// Enable manual CORS
+// Enable manual CORS, restricted to the configured allow-list
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin && corsOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   if (req.method === 'OPTIONS') {
@@ -74,8 +96,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Basic rate limiting for auth endpoints to slow down brute-force / spam signups
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 requests per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please try again later.' }
+});
+
 // Auth API Endpoints
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authRateLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -96,27 +127,34 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const passwordHash = hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        role: 'USER'
-      }
-    });
 
-    // Initialize default stats for all games
+    // Wrap user + stats creation in a single transaction: if GameStat creation fails,
+    // the User row is rolled back too, so a retried registration doesn't hit
+    // "already registered" for a signup the client believes never succeeded.
     const gameTypes: ('SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY')[] = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
-    await Promise.all(
-      gameTypes.map(gt =>
-        prisma.gameStat.create({
-          data: {
-            userId: user.id,
-            gameType: gt
-          }
-        })
-      )
-    );
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+          role: 'USER'
+        }
+      });
+
+      await Promise.all(
+        gameTypes.map(gt =>
+          tx.gameStat.create({
+            data: {
+              userId: createdUser.id,
+              gameType: gt
+            }
+          })
+        )
+      );
+
+      return createdUser;
+    });
 
     const token = generateToken({ id: user.id, username: user.username, role: user.role });
     res.json({
@@ -130,7 +168,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   try {
     const { usernameOrEmail, password } = req.body;
     if (!usernameOrEmail || !password) {
@@ -162,30 +200,34 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/guest', async (req, res) => {
+app.post('/api/auth/guest', authRateLimiter, async (req, res) => {
   try {
     const { username } = req.body;
     const finalUsername = username?.trim() || `Guest_${uuidv4().substring(0, 4)}`;
 
-    const user = await prisma.user.create({
-      data: {
-        username: finalUsername,
-        role: 'GUEST'
-      }
-    });
-
-    // Initialize default stats for all games for guest
+    // Wrap user + stats creation in a single transaction (see /api/auth/register for rationale).
     const gameTypes: ('SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY')[] = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
-    await Promise.all(
-      gameTypes.map(gt =>
-        prisma.gameStat.create({
-          data: {
-            userId: user.id,
-            gameType: gt
-          }
-        })
-      )
-    );
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          username: finalUsername,
+          role: 'GUEST'
+        }
+      });
+
+      await Promise.all(
+        gameTypes.map(gt =>
+          tx.gameStat.create({
+            data: {
+              userId: createdUser.id,
+              gameType: gt
+            }
+          })
+        )
+      );
+
+      return createdUser;
+    });
 
     const token = generateToken({ id: user.id, username: user.username, role: user.role });
     res.json({
@@ -212,6 +254,57 @@ app.get('/api/rooms', (req, res) => {
       maxPlayers: r.lobbySettings?.maxPlayers || 4
     }));
   res.json(roomsList);
+});
+
+const VALID_GAME_TYPES = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
+
+// Leaderboard: top players by gamesWon for a given game type
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const { gameType } = req.query;
+    if (!gameType || typeof gameType !== 'string' || !VALID_GAME_TYPES.includes(gameType)) {
+      return res.status(400).json({ success: false, message: `gameType query param is required and must be one of: ${VALID_GAME_TYPES.join(', ')}.` });
+    }
+
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 100);
+
+    const topStats = await prisma.gameStat.findMany({
+      where: { gameType: gameType as any },
+      orderBy: { gamesWon: 'desc' },
+      take: limit,
+      include: {
+        user: { select: { id: true, username: true } }
+      }
+    });
+
+    const data = topStats.map(stat => ({
+      userId: stat.userId,
+      username: stat.user.username,
+      gameType: stat.gameType,
+      gamesPlayed: stat.gamesPlayed,
+      gamesWon: stat.gamesWon,
+      totalPoints: stat.totalPoints
+    }));
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({ success: false, message: 'Server error while fetching leaderboard.' });
+  }
+});
+
+// All GameStat rows for a given user
+app.get('/api/users/:id/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const stats = await prisma.gameStat.findMany({
+      where: { userId: id }
+    });
+    res.json({ success: true, data: stats });
+  } catch (error: any) {
+    console.error('User stats error:', error);
+    res.status(500).json({ success: false, message: 'Server error while fetching user stats.' });
+  }
 });
 
 // Helper function to persist match statistics to PostgreSQL on game over
@@ -291,6 +384,130 @@ async function saveMatchOutcome(room: GameRoom, winnerId: string | null, finalSt
   } catch (error) {
     console.error(`Error saving match outcome for room ${room.id}:`, error);
   }
+}
+
+// Generic "remove a player from a running game" state mutation.
+// Used both when a vote-kick succeeds and when a player permanently disconnects (30s grace
+// period expiry), so that a departed player never permanently stalls the game for everyone
+// else — regardless of game type, and regardless of whether they were mid-trade or mid-auction
+// in Monopoly. Mutates the engine's state via setCurrentState and returns the resulting state.
+function applyPlayerRemovalToGameState(engineManager: GameEngineManager, targetId: string): GameState {
+  const freshState = engineManager.getCurrentState();
+  const updatedState: GameState = { ...freshState, gameSpecificState: { ...freshState.gameSpecificState } };
+  const gss = updatedState.gameSpecificState;
+
+  if (updatedState.gameType === 'MONOPOLY') {
+    // Mark bankrupt so turn-advancement / win-condition logic skips them from now on
+    if (gss.bankrupt) {
+      gss.bankrupt = { ...gss.bankrupt, [targetId]: true };
+    }
+
+    // Return all owned properties to the bank
+    if (gss.properties) {
+      const updatedProperties: Record<number, any> = { ...gss.properties };
+      Object.keys(updatedProperties).forEach((idxStr: any) => {
+        const idx = parseInt(idxStr, 10);
+        const prop = updatedProperties[idx];
+        if (prop && prop.ownerId === targetId) {
+          updatedProperties[idx] = { ownerId: null, mortgaged: false, houses: 0 };
+        }
+      });
+      gss.properties = updatedProperties;
+    }
+
+    // Clear any active trade that references the removed player, otherwise INITIATE_TRADE
+    // stays permanently blocked and nobody can accept/reject a trade with a ghost participant.
+    if (gss.activeTrade && (gss.activeTrade.proposerId === targetId || gss.activeTrade.receiverId === targetId)) {
+      gss.activeTrade = undefined;
+    }
+
+    // If they were participating in an active auction, remove them and resolve/advance it
+    // so the auction doesn't stall forever waiting on a bid from a player who is gone.
+    if (updatedState.subState === 'AUCTION' && Array.isArray(gss.auctionBidders)) {
+      const oldBidders: string[] = gss.auctionBidders;
+      const oldActiveIndex = gss.auctionActiveBidderIndex ?? 0;
+      const wasActiveBidder = oldBidders[oldActiveIndex] === targetId;
+      const wasHighestBidder = gss.auctionHighestBidderId === targetId;
+      const remainingBidders = oldBidders.filter(id => id !== targetId);
+
+      if (wasHighestBidder) {
+        gss.auctionHighestBidderId = null;
+      }
+
+      const clearAuctionFields = () => {
+        gss.auctionSpaceIndex = undefined;
+        gss.auctionCurrentBid = undefined;
+        gss.auctionHighestBidderId = undefined;
+        gss.auctionActiveBidderIndex = undefined;
+        gss.auctionBidders = undefined;
+        gss.auctionOriginPlayerId = undefined;
+      };
+
+      if (remainingBidders.length === 0) {
+        // No bidders left at all: cancel the auction outright.
+        updatedState.subState = 'WAITING_FOR_TURN_END';
+        updatedState.activePlayerId = gss.auctionOriginPlayerId || updatedState.activePlayerId;
+        clearAuctionFields();
+      } else if (remainingBidders.length === 1 && gss.auctionHighestBidderId) {
+        // Exactly one bidder remains and a real bid stands: resolve the auction to them.
+        const winnerId = remainingBidders[0];
+        const finalBid = gss.auctionCurrentBid || 0;
+        if (winnerId && finalBid > 0 && gss.properties && typeof gss.auctionSpaceIndex === 'number') {
+          gss.properties = {
+            ...gss.properties,
+            [gss.auctionSpaceIndex]: { ownerId: winnerId, mortgaged: false, houses: 0 }
+          };
+          gss.cash = { ...gss.cash, [winnerId]: (gss.cash?.[winnerId] || 0) - finalBid };
+        }
+        updatedState.subState = 'WAITING_FOR_TURN_END';
+        updatedState.activePlayerId = gss.auctionOriginPlayerId || updatedState.activePlayerId;
+        clearAuctionFields();
+      } else {
+        // Auction continues with the remaining bidders — recompute whose turn it is to bid.
+        let nextActiveIndex: number;
+        if (wasActiveBidder) {
+          nextActiveIndex = oldActiveIndex % remainingBidders.length;
+        } else {
+          const oldActiveId = oldBidders[oldActiveIndex];
+          const newIdx = remainingBidders.indexOf(oldActiveId);
+          nextActiveIndex = newIdx === -1 ? 0 : newIdx;
+        }
+        gss.auctionBidders = remainingBidders;
+        gss.auctionActiveBidderIndex = nextActiveIndex;
+      }
+    }
+
+    // Force turn advancement if the removed player was active
+    if (updatedState.activePlayerId === targetId && updatedState.turnOrder.length > 0) {
+      let nextTurnIndex = updatedState.turnIndex;
+      const total = updatedState.turnOrder.length;
+      for (let i = 0; i < total; i++) {
+        nextTurnIndex = (nextTurnIndex + 1) % total;
+        if (!gss.bankrupt?.[updatedState.turnOrder[nextTurnIndex]]) break;
+      }
+      updatedState.activePlayerId = updatedState.turnOrder[nextTurnIndex];
+      updatedState.turnIndex = nextTurnIndex;
+      updatedState.subState = 'WAITING_FOR_ROLL';
+    }
+  } else {
+    // Snakes & Ladders, Ludo, Uno: forfeiting is simpler — just advance the turn if the
+    // departed player was the one blocking progress.
+    if (updatedState.activePlayerId === targetId && updatedState.turnOrder.length > 0) {
+      const nextTurnIndex = (updatedState.turnIndex + 1) % updatedState.turnOrder.length;
+      updatedState.activePlayerId = updatedState.turnOrder[nextTurnIndex];
+      updatedState.turnIndex = nextTurnIndex;
+    }
+  }
+
+  engineManager.setCurrentState(updatedState);
+
+  const winnerId = engineManager.getRuleset().checkWinConditions(updatedState);
+  if (winnerId) {
+    updatedState.status = 'GAME_OVER';
+    updatedState.winnerId = winnerId;
+  }
+
+  return updatedState;
 }
 
 // Socket server coordination
@@ -536,17 +753,13 @@ io.on('connection', (socket: Socket) => {
   });
 
   // 5. Start Game
-  socket.on('start_game', (payload: any, callback?: Function) => {
-    let actualCallback = callback;
+  // Client-facing contract: socket.on('start_game', (payload: { config?: {...} }, callback: Function))
+  socket.on('start_game', (payload: { config?: Record<string, any> } | undefined, callback?: Function) => {
+    const actualCallback = callback;
     let actualConfig: Record<string, any> = { gameId: socket.data.roomId };
-    
-    // Check if first argument is a function (old callback-only signature) or an object
-    if (typeof payload === 'function') {
-      actualCallback = payload;
-    } else if (payload && typeof payload === 'object') {
-      if (payload.config) {
-        actualConfig = { ...actualConfig, ...payload.config };
-      }
+
+    if (payload && typeof payload === 'object' && payload.config) {
+      actualConfig = { ...actualConfig, ...payload.config };
     }
 
     const { playerId, roomId } = socket.data;
@@ -683,6 +896,7 @@ io.on('connection', (socket: Socket) => {
     // Check if the game is now over
     if (updatedState.status === 'GAME_OVER') {
       room.status = 'ENDED';
+      room.endedAt = Date.now();
       io.to(roomId).emit('game_ended', { winnerId: updatedState.winnerId });
       console.log(`Game ended in room ${roomId}. Winner: ${updatedState.winnerId}`);
 
@@ -865,71 +1079,37 @@ io.on('connection', (socket: Socket) => {
         players: room.players.map(p => ({ id: p.id, name: p.name, connected: p.connected, ready: p.ready, color: p.color }))
       });
 
-      // If in game, mark target as bankrupt in ruleset so game is not blocked!
+      // If in game, remove the kicked player from the running game state so it is not blocked!
       if (room.status === 'PLAYING' && room.engineManager) {
         const freshState = room.engineManager.getCurrentState();
-        if (freshState.gameType === 'MONOPOLY') {
-          // Set bankrupt flag in gameSpecificState
-          const updatedState = { ...freshState };
-          if (updatedState.gameSpecificState.bankrupt) {
-            updatedState.gameSpecificState.bankrupt[targetId] = true;
-          }
-          // Remove all houses and transfer their owned properties back to bank
-          if (updatedState.gameSpecificState.properties) {
-            Object.keys(updatedState.gameSpecificState.properties).forEach((idxStr: any) => {
-              const idx = parseInt(idxStr, 10);
-              const prop = updatedState.gameSpecificState.properties[idx];
-              if (prop && prop.ownerId === targetId) {
-                updatedState.gameSpecificState.properties[idx] = { ownerId: null, mortgaged: false, houses: 0 };
-              }
-            });
-          }
-          
-          // Force turn advancement if they were active
-          if (updatedState.activePlayerId === targetId) {
-            let nextTurnIndex = updatedState.turnIndex;
-            do {
-              nextTurnIndex = (nextTurnIndex + 1) % updatedState.turnOrder.length;
-            } while (updatedState.gameSpecificState.bankrupt[updatedState.turnOrder[nextTurnIndex]]);
-            
-            updatedState.activePlayerId = updatedState.turnOrder[nextTurnIndex];
-            updatedState.turnIndex = nextTurnIndex;
-            updatedState.subState = 'WAITING_FOR_ROLL';
-          }
+        const wasBlocking = freshState.activePlayerId === targetId
+          || (freshState.gameType === 'MONOPOLY' && (
+            (freshState.gameSpecificState.activeTrade && (
+              freshState.gameSpecificState.activeTrade.proposerId === targetId ||
+              freshState.gameSpecificState.activeTrade.receiverId === targetId
+            )) ||
+            (freshState.subState === 'AUCTION' && (freshState.gameSpecificState.auctionBidders || []).includes(targetId))
+          ));
 
-          room.engineManager.setCurrentState(updatedState);
+        const updatedState = applyPlayerRemovalToGameState(room.engineManager, targetId);
 
-          // B-2 Fix: Check if only one player is left — if so the game is over
-          const winnerAfterKick = room.engineManager.getRuleset().checkWinConditions(room.engineManager.getCurrentState());
-          if (winnerAfterKick) {
-            room.status = 'ENDED';
-            io.to(roomId).emit('game_ended', {
-              winnerId: winnerAfterKick,
-              gameState: room.engineManager.getCurrentState()
-            });
-            console.log(`Game in room ${roomId} ended after kick — winner: ${winnerAfterKick}`);
-          } else {
-            io.to(roomId).emit('game_state_update', {
-              gameState: room.engineManager.getCurrentState(),
-              events: [{ type: 'BANKRUPTCY_DECLARED', playerId: targetId, payload: {} }]
-            });
-            runBotTurnIfActive(roomId);
-          }
-        } else {
-          // Ludo, Uno, Snakes & Ladders: Forfeiting is simpler
-          const updatedState = { ...freshState };
-          if (updatedState.activePlayerId === targetId) {
-            const nextTurnIndex = (updatedState.turnIndex + 1) % updatedState.turnOrder.length;
-            updatedState.activePlayerId = updatedState.turnOrder[nextTurnIndex];
-            updatedState.turnIndex = nextTurnIndex;
-            
-            room.engineManager.setCurrentState(updatedState);
-            io.to(roomId).emit('game_state_update', {
-              gameState: room.engineManager.getCurrentState(),
-              events: []
-            });
-            runBotTurnIfActive(roomId);
-          }
+        if (updatedState.status === 'GAME_OVER') {
+          room.status = 'ENDED';
+      room.endedAt = Date.now();
+          io.to(roomId).emit('game_ended', {
+            winnerId: updatedState.winnerId,
+            gameState: updatedState
+          });
+          console.log(`Game in room ${roomId} ended after kick — winner: ${updatedState.winnerId}`);
+          saveMatchOutcome(room, updatedState.winnerId, updatedState).catch(err => {
+            console.error('Failed to save match outcome to PostgreSQL:', err);
+          });
+        } else if (wasBlocking) {
+          io.to(roomId).emit('game_state_update', {
+            gameState: updatedState,
+            events: freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId: targetId, payload: {} }] : []
+          });
+          runBotTurnIfActive(roomId);
         }
       }
 
@@ -993,6 +1173,7 @@ io.on('connection', (socket: Socket) => {
     
     // Reset status and player readies
     room.status = 'LOBBY';
+    room.endedAt = undefined;
     room.engineManager = null;
     room.seed = Math.floor(Math.random() * 1000000000);
     room.players.forEach(p => {
@@ -1041,6 +1222,7 @@ io.on('connection', (socket: Socket) => {
       }
     }
     room.status = 'LOBBY';
+    room.endedAt = undefined;
     room.engineManager = null;
     room.seed = Math.floor(Math.random() * 1000000000);
     room.players = room.players.filter(p => !p.id.startsWith('bot-'));
@@ -1095,6 +1277,43 @@ function handlePermanentLeave(roomId: string, playerId: string) {
   }
 
   io.to(roomId).emit('player_left_permanent', { playerId });
+
+  // Fix: a permanently-left player must not stall the game if they were the active player
+  // (or otherwise blocking progress, e.g. mid-trade/mid-auction in Monopoly). Force a
+  // turn-skip using the same generic removal logic the vote-kick path uses.
+  if (room.status === 'PLAYING' && room.engineManager) {
+    const freshState = room.engineManager.getCurrentState();
+    if (freshState.status === 'ACTIVE') {
+      const wasBlocking = freshState.activePlayerId === playerId
+        || (freshState.gameType === 'MONOPOLY' && (
+          (freshState.gameSpecificState.activeTrade && (
+            freshState.gameSpecificState.activeTrade.proposerId === playerId ||
+            freshState.gameSpecificState.activeTrade.receiverId === playerId
+          )) ||
+          (freshState.subState === 'AUCTION' && (freshState.gameSpecificState.auctionBidders || []).includes(playerId))
+        ));
+
+      if (wasBlocking) {
+        const updatedState = applyPlayerRemovalToGameState(room.engineManager, playerId);
+
+        if (updatedState.status === 'GAME_OVER') {
+          room.status = 'ENDED';
+      room.endedAt = Date.now();
+          io.to(roomId).emit('game_ended', { winnerId: updatedState.winnerId, gameState: updatedState });
+          console.log(`Game in room ${roomId} ended after permanent disconnect — winner: ${updatedState.winnerId}`);
+          saveMatchOutcome(room, updatedState.winnerId, updatedState).catch(err => {
+            console.error('Failed to save match outcome to PostgreSQL:', err);
+          });
+        } else {
+          io.to(roomId).emit('game_state_update', {
+            gameState: updatedState,
+            events: freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId, payload: {} }] : []
+          });
+          runBotTurnIfActive(roomId);
+        }
+      }
+    }
+  }
 }
 
 function runBotTurnIfActive(roomId: string) {
@@ -1314,6 +1533,7 @@ function runBotTurnIfActive(roomId: string) {
 
       if (nextFreshState.status === 'GAME_OVER') {
         freshRoom.status = 'ENDED';
+        freshRoom.endedAt = Date.now();
         io.to(roomId).emit('game_ended', { winnerId: nextFreshState.winnerId });
         saveMatchOutcome(freshRoom, nextFreshState.winnerId, nextFreshState).catch(err => {
           console.error('Failed to save match outcome to PostgreSQL:', err);
@@ -1326,6 +1546,33 @@ function runBotTurnIfActive(roomId: string) {
 }
 
 
-httpServer.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+// Periodic lifecycle sweep: delete rooms that have sat ENDED with no activity for a while,
+// so in-memory `rooms` doesn't grow unbounded across the server's lifetime.
+const ENDED_ROOM_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const ROOM_SWEEP_INTERVAL_MS = 5 * 60 * 1000; // run every 5 minutes
+
+const roomSweepInterval = setInterval(() => {
+  const now = Date.now();
+  for (const roomId of Object.keys(rooms)) {
+    const room = rooms[roomId];
+    if (room.status === 'ENDED' && room.endedAt && (now - room.endedAt) > ENDED_ROOM_TIMEOUT_MS) {
+      delete rooms[roomId];
+      room.players.forEach(p => {
+        if (playerToRoom[p.id] === roomId) delete playerToRoom[p.id];
+      });
+      console.log(`Swept stale ENDED room ${roomId} (inactive for over ${ENDED_ROOM_TIMEOUT_MS / 60000} minutes).`);
+    }
+  }
+}, ROOM_SWEEP_INTERVAL_MS);
+roomSweepInterval.unref?.();
+
+// Only auto-listen when this file is run directly (e.g. `ts-node src/server.ts` / `node dist/server.js`).
+// When imported by a test harness, the caller is responsible for starting httpServer on an
+// ephemeral port, so requiring this module doesn't bind a port as a side effect.
+if (require.main === module) {
+  httpServer.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+  });
+}
+
+export { app, httpServer, io, rooms };

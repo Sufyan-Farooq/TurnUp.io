@@ -1,5 +1,5 @@
 import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent } from './interfaces';
-import { DeterministicRNG } from './rng';
+import { createRngFromState } from './rng';
 
 export interface LudoState extends GameState {
   gameSpecificState: {
@@ -59,7 +59,7 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
         return { isValid: false, error: 'Cannot roll dice right now.', events: [] };
       }
 
-      const rng = new DeterministicRNG(parseInt(currentState.rngState, 10));
+      const rng = createRngFromState(currentState.rngState);
       const roll = rng.rollRange(1, 6);
       const events: GameEvent[] = [
         {
