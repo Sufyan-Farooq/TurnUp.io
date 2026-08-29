@@ -29,6 +29,26 @@ export function getPlayerColorPalette(maxPlayers?: number): string[] {
   return PLAYER_COLORS.slice(0, count).map((c) => c.hex);
 }
 
+/**
+ * Extra token colors offered in the appearance picker for games that do not
+ * pin a player to a fixed board quadrant (everything except Ludo).
+ */
+export const EXTENDED_APPEARANCE_COLORS = [
+  '#adff2f', '#ffb703', '#fb8500', '#e63946',
+  '#4a90e2', '#8ecae6', '#2a9d8f', '#38b000',
+  '#b07d62', '#ffafcc', '#ff007f', '#7b2cbf',
+] as const;
+
+/**
+ * Colors a player may pick in the lobby. Ludo is restricted to the seat
+ * palette (the color determines the player's base/track offset), every other
+ * game gets the wider cosmetic palette.
+ */
+export function getValidAppearanceColors(gameType: string | undefined, maxPlayers: number): readonly string[] {
+  if (gameType === 'LUDO') return getPlayerColorPalette(maxPlayers);
+  return EXTENDED_APPEARANCE_COLORS;
+}
+
 /** Ludo base/path color name for a given base index, matching the CSS .base-* classes. */
 export function getLudoColorName(baseIdx: number, maxPlayers?: number): string {
   const palette = maxPlayers === 6 ? PLAYER_COLORS : PLAYER_COLORS.slice(0, 4);

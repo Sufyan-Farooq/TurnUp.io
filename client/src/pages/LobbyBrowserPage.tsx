@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Building2, Dice5, Layers, Route, Eye } from 'lucide-react';
 import { Modal, Button } from '../components/ui';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+import { SERVER_URL } from '../hooks/useSocket';
 
 export interface RoomListItem {
   id: string;

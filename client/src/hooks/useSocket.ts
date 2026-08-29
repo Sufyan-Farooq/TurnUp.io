@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { SocketService } from '../services/socket';
 
-export const SERVER_URL = 'http://localhost:3000';
+export const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 export interface UseSocketResult {
   /** Raw socket.io-client instance once connected, else null. */

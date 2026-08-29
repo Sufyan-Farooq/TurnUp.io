@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KeyRound, UserPlus, Dice5, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui';
+import { SERVER_URL } from '../hooks/useSocket';
 
 export interface AuthUser {
   id: string;
@@ -20,8 +21,6 @@ export interface AuthPageProps {
    * persisting these (localStorage) and updating app-level auth state. */
   onAuthenticated: (token: string, user: AuthUser) => void;
 }
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 /**
  * Landing auth screen: guest nickname entry (default), plus login/register

@@ -16,6 +16,9 @@ export interface UseAuthResult {
   guestLogin: (username: string) => Promise<boolean>;
   /** Clears token/user from state + localStorage. Does not touch any room/socket session. */
   logout: () => void;
+  /** Adopt a {token, user} pair obtained elsewhere (e.g. `AuthPage`, which
+   *  performs its own fetch) and persist it exactly as the calls below do. */
+  applySession: (token: string, user: AuthUser) => void;
 }
 
 /**
@@ -37,12 +40,12 @@ export function useAuth(): UseAuthResult {
   });
   const [authError, setAuthError] = useState('');
 
-  const applySession = (data: { token: string; user: AuthUser }) => {
-    localStorage.setItem('turnup_token', data.token);
-    localStorage.setItem('turnup_user', JSON.stringify(data.user));
-    setToken(data.token);
-    setCurrentUser(data.user);
-  };
+  const applySession = useCallback((nextToken: string, user: AuthUser) => {
+    localStorage.setItem('turnup_token', nextToken);
+    localStorage.setItem('turnup_user', JSON.stringify(user));
+    setToken(nextToken);
+    setCurrentUser(user);
+  }, []);
 
   const login = useCallback(async (usernameOrEmail: string, password: string) => {
     setAuthError('');
@@ -58,7 +61,7 @@ export function useAuth(): UseAuthResult {
       });
       const data = await response.json();
       if (data.success) {
-        applySession(data);
+        applySession(data.token, data.user);
         return true;
       }
       setAuthError(data.message || 'Login failed.');
@@ -84,7 +87,7 @@ export function useAuth(): UseAuthResult {
       });
       const data = await response.json();
       if (data.success) {
-        applySession(data);
+        applySession(data.token, data.user);
         return true;
       }
       setAuthError(data.message || 'Registration failed.');
@@ -110,7 +113,7 @@ export function useAuth(): UseAuthResult {
       });
       const data = await response.json();
       if (data.success) {
-        applySession(data);
+        applySession(data.token, data.user);
         return true;
       }
       setAuthError(data.message || 'Guest entry failed.');
@@ -137,6 +140,7 @@ export function useAuth(): UseAuthResult {
     login,
     register,
     guestLogin,
-    logout
+    logout,
+    applySession
   };
 }

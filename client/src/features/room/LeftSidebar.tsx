@@ -19,7 +19,7 @@ export interface LeftSidebarProps {
   copiedLink: boolean;
   onCopyLink: () => void;
   /** Ref to an empty div at the bottom of the message list for auto-scroll-into-view. */
-  chatEndRef?: React.RefObject<HTMLDivElement>;
+  chatEndRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
