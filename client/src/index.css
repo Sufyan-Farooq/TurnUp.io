@@ -972,14 +972,12 @@ input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
   100% { transform: rotate(-8deg) scale(1); }
 }
 
-/* ── Victory modal bounce entrance ── */
-@keyframes bounce-in {
-  0%   { opacity: 0; transform: scale(0.7) translateY(30px); }
-  60%  { opacity: 1; transform: scale(1.04) translateY(-8px); }
-  80%  { transform: scale(0.97) translateY(4px); }
-  100% { transform: scale(1) translateY(0); }
+/* ── Victory modal entrance (smooth exponential decel, no overshoot) ── */
+@keyframes modal-enter {
+  0%   { opacity: 0; transform: scale(0.94) translateY(16px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
 }
-.animate-victory-modal { animation: bounce-in 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+.animate-victory-modal { animation: modal-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 /* ── Confetti pop (star sparkle behind victory) ── */
 @keyframes confetti-pop {
@@ -1235,7 +1233,7 @@ input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: bounce-in 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .modal-header {
   padding: 20px 24px;
@@ -1352,10 +1350,7 @@ input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
   font-family: 'Fredoka', sans-serif;
   font-size: 40px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--lime) 0%, var(--gold) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--lime);
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
