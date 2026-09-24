@@ -79,6 +79,8 @@ let isShuttingDown = false;
 
 // Shared state
 const rooms: Record<string, GameRoom> = {};
+const BOT_ACTION_DELAY_MIN_MS = 1300;
+const BOT_ACTION_DELAY_VARIANCE_MS = 600;
 const playerToRoom: Record<string, string> = {}; // playerId -> roomId
 const disconnectTimers: Record<string, NodeJS.Timeout> = {};
 
@@ -1633,7 +1635,7 @@ function runBotTurnIfActive(roomId: string) {
         runBotTurnIfActive(roomId);
       }
     }
-  }, 800);
+  }, BOT_ACTION_DELAY_MIN_MS + Math.random() * BOT_ACTION_DELAY_VARIANCE_MS);
 }
 
 
