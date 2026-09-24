@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { SocketService } from '../services/socket';
-import type { AuthUser, ChatMessage, Player, Room, RoomActionResult, VoteKickState } from '../types/game';
+import type { AuthUser, ChatMessage, LobbySettingsPatch, Player, Room, RoomActionResult, VoteKickState } from '../types/game';
+
+export type SettingsSyncState = 'idle' | 'saving' | 'saved' | 'error';
 
 export interface UseRoomOptions {
   /** Passive event: server just broadcast `game_started`. useGameState owns
@@ -11,6 +13,8 @@ export interface UseRoomOptions {
   /** Passive event: the `auth` reconnection handshake found an active game.
    *  `gameState` is the raw payload — pass it to useGameState's setter. */
   onReconnectedToGame?: (gameState: any, isSpectator: boolean) => void;
+  /** The reconnect handshake restored a waiting-room session. */
+  onReconnectedToLobby?: () => void;
   /** Passive event: `room_reset_to_lobby` — tells the caller to clear
    *  gameState (owned by useGameState) and flip inGame/inLobby flags. */
   onReturnedToLobby?: () => void;
@@ -29,6 +33,8 @@ export interface UseRoomResult {
   hasJoinedLobby: boolean;
   chatMessages: ChatMessage[];
   voteKickState: VoteKickState | null;
+  settingsSyncState: SettingsSyncState;
+  settingsSyncMessage: string | null;
 
   /** Wire this to `useSocket`'s `onSocketConnect` to replicate the original
    *  "attempt silent reconnection on every transport connect" behavior. */
@@ -37,7 +43,7 @@ export interface UseRoomResult {
   createRoom: (gameType: string, name?: string) => Promise<RoomActionResult>;
   joinRoom: (roomId: string, tokenOverride?: string) => Promise<RoomActionResult>;
   toggleReady: () => Promise<{ success: boolean; ready?: boolean }>;
-  updateLobbySettings: (settings: Record<string, any>) => void;
+  updateLobbySettings: (settings: LobbySettingsPatch) => boolean;
   selectAppearance: (color: string) => Promise<{ success: boolean }>;
   sendChat: (text: string) => void;
   initiateVoteKick: (targetPlayerId: string) => void;
@@ -73,6 +79,10 @@ export function useRoom(
   const [hasJoinedLobby, setHasJoinedLobby] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [voteKickState, setVoteKickState] = useState<VoteKickState | null>(null);
+  const [settingsSyncState, setSettingsSyncState] = useState<SettingsSyncState>('idle');
+  const [settingsSyncMessage, setSettingsSyncMessage] = useState<string | null>(null);
+  const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confirmedSettingsRef = useRef<LobbySettingsPatch>({});
 
   // Kept in a ref so listeners registered once per `socket` can still read
   // fresh values (player names, current user id) without re-subscribing.
@@ -100,12 +110,15 @@ export function useRoom(
           return;
         }
         setRoom(res.room ?? null);
-        if (res.isSpectator) setIsSpectator(true);
+        setIsSpectator(!!res.isSpectator);
+        confirmedSettingsRef.current = res.room?.lobbySettings ?? {};
         const meInLobby = res.room?.players?.find(p => p.id === currentUserRef.current?.id);
-        if (meInLobby && meInLobby.color) setHasJoinedLobby(true);
+        setHasJoinedLobby(!!res.isSpectator || !!meInLobby?.color);
 
         if (res.room?.status === 'PLAYING') {
           optionsRef.current.onReconnectedToGame?.(res.gameState, !!res.isSpectator);
+        } else if (res.room?.status === 'LOBBY') {
+          optionsRef.current.onReconnectedToLobby?.();
         }
       });
     },
@@ -153,8 +166,13 @@ export function useRoom(
       );
     };
 
-    const onLobbySettingsUpdated = (data: { settings: Record<string, any> }) => {
+    const onLobbySettingsUpdated = (data: { settings: LobbySettingsPatch }) => {
+      confirmedSettingsRef.current = data.settings;
       setRoom(prev => (prev ? { ...prev, lobbySettings: data.settings } : null));
+      if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+      settingsTimerRef.current = null;
+      setSettingsSyncState('saved');
+      setSettingsSyncMessage('Settings saved');
     };
 
     const onSpectatorJoined = (data: { player: { id: string; name: string } }) => {
@@ -254,6 +272,10 @@ export function useRoom(
     };
   }, [socket, getPlayerName]);
 
+  useEffect(() => () => {
+    if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+  }, []);
+
   const createRoom = useCallback(
     (gameType: string, name?: string) =>
       new Promise<RoomActionResult>(resolve => {
@@ -264,6 +286,9 @@ export function useRoom(
           (res: RoomActionResult) => {
             if (res.success) {
               setRoom(res.room ?? null);
+              setIsSpectator(false);
+              setHasJoinedLobby(false);
+              confirmedSettingsRef.current = res.room?.lobbySettings ?? {};
               if (res.roomId && token) socketService?.saveSession(res.roomId, token);
             }
             resolve(res);
@@ -281,10 +306,10 @@ export function useRoom(
         socket.emit('join_room', { roomId: roomId.toUpperCase(), token: authToken || undefined }, (res: RoomActionResult) => {
           if (res.success) {
             setRoom(res.room ?? null);
-            if (res.isSpectator) {
-              setIsSpectator(true);
-              setHasJoinedLobby(true);
-            }
+            setIsSpectator(!!res.isSpectator);
+            const me = res.room?.players?.find(p => p.id === currentUserRef.current?.id);
+            setHasJoinedLobby(!!res.isSpectator || !!me?.color);
+            confirmedSettingsRef.current = res.room?.lobbySettings ?? {};
             if (authToken) socketService?.saveSession(res.roomId || roomId.toUpperCase(), authToken);
           }
           resolve(res);
@@ -303,10 +328,40 @@ export function useRoom(
   );
 
   const updateLobbySettings = useCallback(
-    (settings: Record<string, any>) => {
-      if (!socket) return;
+    (settings: LobbySettingsPatch) => {
+      if (!socket?.connected || roomRef.current?.hostId !== currentUserRef.current?.id) {
+        setSettingsSyncState('error');
+        setSettingsSyncMessage(socket?.connected ? 'Only the host can edit settings.' : 'Reconnect before changing settings.');
+        return false;
+      }
       const currentSettings = roomRef.current?.lobbySettings || {};
-      socket.emit('update_lobby_settings', { settings: { ...currentSettings, ...settings } });
+      const nextSettings = { ...currentSettings, ...settings };
+      setRoom(prev => (prev ? { ...prev, lobbySettings: nextSettings } : null));
+      setSettingsSyncState('saving');
+      setSettingsSyncMessage('Saving changes…');
+      if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+      settingsTimerRef.current = setTimeout(() => {
+        setRoom(prev => (prev ? { ...prev, lobbySettings: confirmedSettingsRef.current } : null));
+        setSettingsSyncState('error');
+        setSettingsSyncMessage('Changes were not confirmed. Try again.');
+      }, 5000);
+      socket.emit('update_lobby_settings', { settings: nextSettings }, (result: { success: boolean; message?: string; settings?: LobbySettingsPatch }) => {
+        if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+        settingsTimerRef.current = null;
+        if (!result?.success) {
+          setRoom(prev => (prev ? { ...prev, lobbySettings: confirmedSettingsRef.current } : null));
+          setSettingsSyncState('error');
+          setSettingsSyncMessage(result?.message || 'Could not save settings.');
+          return;
+        }
+        if (result.settings) {
+          confirmedSettingsRef.current = result.settings;
+          setRoom(prev => (prev ? { ...prev, lobbySettings: result.settings } : null));
+        }
+        setSettingsSyncState('saved');
+        setSettingsSyncMessage('Settings saved');
+      });
+      return true;
     },
     [socket]
   );
@@ -379,6 +434,8 @@ export function useRoom(
     hasJoinedLobby,
     chatMessages,
     voteKickState,
+    settingsSyncState,
+    settingsSyncMessage,
     handleTransportConnect,
     createRoom,
     joinRoom,

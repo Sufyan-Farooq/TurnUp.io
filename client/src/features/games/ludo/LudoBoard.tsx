@@ -73,7 +73,7 @@ const LUDO_6_TRACK_COORDS: [number, number][] = [
 export const getPlayerBaseIndex = (room: GameRoom | null, gameState: LudoGameState, pId: string): number => {
   const p = room?.players?.find(x => x.id === pId) || gameState.players?.find(x => x.id === pId);
   const color = p?.color;
-  const maxPlayers = room?.lobbySettings?.maxPlayers === 6 || gameState.gameSpecificState.maxPlayers === 6 ? 6 : 4;
+  const maxPlayers = gameState.gameSpecificState.maxPlayers ?? room?.lobbySettings?.maxPlayers ?? 4;
   const colors = getPlayerColorPalette(maxPlayers);
 
   if (color) {
@@ -85,8 +85,10 @@ export const getPlayerBaseIndex = (room: GameRoom | null, gameState: LudoGameSta
 };
 
 /** Ludo coordinate solver, extracted verbatim (behavior-wise) from App.tsx's `getLudoCoords`. */
-export const getLudoCoords = (room: GameRoom | null, playerIdx: number, position: number, tokenIdx: number) => {
-  const is6 = room?.lobbySettings?.maxPlayers === 6;
+export const getLudoCoords = (room: GameRoom | null, playerIdx: number, position: number, tokenIdx: number, maxPlayers?: number) => {
+  const is6 = maxPlayers !== undefined
+    ? maxPlayers === 6
+    : room?.lobbySettings?.maxPlayers === 6;
   const trackLength = is6 ? 78 : 52;
   const cellW = 1000 / (is6 ? 24 : 15);
   const cellH = (is6 ? 625 : 1000) / 15;
@@ -214,7 +216,10 @@ export const isTokenMoveValid = (
  * captures.
  */
 export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUserId, onMoveToken }) => {
-  const is6 = room?.lobbySettings?.maxPlayers === 6;
+  // Match state is authoritative once play begins; lobby settings can lag after
+  // reconnecting and previously rendered a 6-player match on the 4-player grid.
+  const maxPlayers = gameState.gameSpecificState.maxPlayers ?? room?.lobbySettings?.maxPlayers ?? 4;
+  const is6 = maxPlayers === 6;
   const trackLength = is6 ? 78 : 52;
   const isMyTurn = gameState.activePlayerId === currentUserId;
 
@@ -307,7 +312,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
   Object.entries(gameState.gameSpecificState.tokens || {}).forEach(([pId, tokenPositions]) => {
     const playerIdx = getPlayerBaseIndex(room, gameState, pId);
     tokenPositions.forEach((pos, tIdx) => {
-      const coords = getLudoCoords(room, playerIdx, pos, tIdx);
+      const coords = getLudoCoords(room, playerIdx, pos, tIdx, maxPlayers);
       const key = `${coords.x.toFixed(1)},${coords.y.toFixed(1)}`;
       if (!ludoSharedCoords[key]) {
         ludoSharedCoords[key] = [];
@@ -317,7 +322,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
   });
 
   return (
-    <BoardWrapper>
+    <BoardWrapper virtualWidth={1000} virtualHeight={is6 ? 625 : 1000}>
       <div
         className="ludo-board-grid"
         style={is6 ? {
@@ -475,7 +480,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
           if (!playerObj) return null;
 
           return tokenPositions.map((pos, tIdx) => {
-            const coords = getLudoCoords(room, playerIdx, pos, tIdx);
+            const coords = getLudoCoords(room, playerIdx, pos, tIdx, maxPlayers);
             const key = `${coords.x.toFixed(1)},${coords.y.toFixed(1)}`;
             const shared = ludoSharedCoords[key] || [];
             const count = shared.length;
@@ -499,6 +504,9 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
               <div
                 key={`${pId}-${tIdx}`}
                 className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''}`}
+                role={isInteractive ? 'button' : undefined}
+                tabIndex={isInteractive ? 0 : -1}
+                aria-label={`${playerObj.name}'s token ${tIdx + 1}${isInteractive ? ', move this token' : ''}`}
                 style={{
                   left: `${coords.x + ox}px`,
                   top: `${coords.y + oy}px`,
@@ -508,6 +516,12 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 }}
                 onClick={() => {
                   if (isInteractive) {
+                    onMoveToken(tIdx);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (isInteractive && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
                     onMoveToken(tIdx);
                   }
                 }}

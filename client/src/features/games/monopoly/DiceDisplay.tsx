@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, type LucideIcon } from 'lucide-react';
 
 const DICE_ICONS: LucideIcon[] = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
@@ -17,6 +17,15 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
   return (
     <div
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role={onClick ? 'button' : 'img'}
+      tabIndex={onClick ? 0 : -1}
+      aria-label={onClick ? `Roll dice, currently showing ${clamped}` : `Dice showing ${clamped}`}
       style={{
         width: size,
         height: size,
@@ -47,20 +56,38 @@ export function useRollAnimation(onRollDice: () => void, durationMs = 800, inter
   const [isRolling, setIsRolling] = useState(false);
   const [diceValues, setDiceValues] = useState<[number, number]>([3, 4]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rollingRef = useRef(false);
+  const onRollDiceRef = useRef(onRollDice);
 
-  const triggerRoll = () => {
-    if (isRolling) return;
+  useEffect(() => {
+    onRollDiceRef.current = onRollDice;
+  }, [onRollDice]);
+
+  useEffect(() => () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    rollingRef.current = false;
+  }, []);
+
+  const triggerRoll = useCallback(() => {
+    // A ref closes the same-render double-click window before React commits.
+    if (rollingRef.current) return;
+    rollingRef.current = true;
     setIsRolling(true);
     intervalRef.current = setInterval(() => {
       setDiceValues([Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1]);
     }, intervalMs);
 
-    setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      timeoutRef.current = null;
+      rollingRef.current = false;
       setIsRolling(false);
-      onRollDice();
+      onRollDiceRef.current();
     }, durationMs);
-  };
+  }, [durationMs, intervalMs]);
 
   return { isRolling, diceValues, triggerRoll };
 }

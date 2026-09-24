@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
-import { MessageCircle, X } from 'lucide-react';
+import { MessageCircle, SlidersHorizontal, WifiOff, X } from 'lucide-react';
 
 import { BoardWrapper } from './components/BoardWrapper';
 import { Button, useToast } from './components/ui';
@@ -123,6 +123,7 @@ export default function App() {
   const [heldState, setHeldState] = useState<GameState | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
+  const [isLobbySidebarOpen, setIsLobbySidebarOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
@@ -153,6 +154,10 @@ export default function App() {
       game.setGameState(gameState);
       setInLobby(false);
       setInGame(true);
+    },
+    onReconnectedToLobby: () => {
+      setInGame(false);
+      setInLobby(true);
     },
     onReturnedToLobby: () => {
       seededGameIdRef.current = null;
@@ -461,29 +466,14 @@ export default function App() {
 
   const handleStartGame = () => {
     if (!socket || room?.hostId !== playerId) return;
-    const settings = room?.lobbySettings || {};
-    const config = {
-      startingCash: settings.startingCash !== undefined ? settings.startingCash : 1500,
-      doubleRentRule: settings.doubleRentRule !== undefined ? settings.doubleRentRule : true,
-      vacationCash: settings.vacationCash !== undefined ? settings.vacationCash : false,
-      auction: settings.auction !== undefined ? settings.auction : false,
-      prisonRent: settings.prisonRent !== undefined ? settings.prisonRent : false,
-      evenBuild: settings.evenBuild !== undefined ? settings.evenBuild : true,
-      margin: settings.margin !== undefined ? settings.margin : false,
-      mortgage: settings.mortgage !== undefined ? settings.mortgage : true,
-      randomizeOrder: settings.randomizeOrder !== undefined ? settings.randomizeOrder : false,
-      maxPlayers: settings.maxPlayers !== undefined ? settings.maxPlayers : 4,
-      allowBots: settings.allowBots !== undefined ? settings.allowBots : false,
-      cardStacking: settings.cardStacking !== undefined ? settings.cardStacking : true,
-      cardDoubles: settings.cardDoubles !== undefined ? settings.cardDoubles : true,
-    };
-
-    socket.emit('start_game', { config }, (res: { success: boolean; message?: string }) => {
+    socket.emit('start_game', {}, (res: { success: boolean; message?: string }) => {
       if (!res?.success) showToast(res?.message || 'Could not start the game.', 'error');
+      else setIsLobbySidebarOpen(false);
     });
   };
 
   const handleLeaveGame = () => {
+    setIsLobbySidebarOpen(false);
     roomApi.leaveRoomSession();
     game.setGameState(null);
     seededGameIdRef.current = null;
@@ -746,7 +736,13 @@ export default function App() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'row', width: '100%', height: '100dvh', overflow: 'hidden', position: 'relative' }}>
+        {!isConnected && (
+          <div className="connection-banner" role="status" aria-live="polite">
+            <WifiOff size={15} /> Connection lost. Reconnecting…
+          </div>
+        )}
         <div className={`left-sidebar-overlay ${isLeftSidebarOpen ? 'active' : ''}`} onClick={() => setIsLeftSidebarOpen(false)} />
+        {inLobby && <div className={`lobby-sidebar-overlay ${isLobbySidebarOpen ? 'active' : ''}`} onClick={() => setIsLobbySidebarOpen(false)} />}
 
         <LeftSidebar
           roomId={room.id}
@@ -765,6 +761,11 @@ export default function App() {
         <button className="chat-toggle-btn" onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} aria-label="Toggle chat">
           {isLeftSidebarOpen ? <X size={20} /> : <MessageCircle size={20} />}
         </button>
+        {inLobby && (
+          <button className="lobby-settings-toggle" onClick={() => setIsLobbySidebarOpen(true)} aria-label="Open lobby settings">
+            <SlidersHorizontal size={20} />
+          </button>
+        )}
 
         {/* Game area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', minWidth: 0 }}>
@@ -859,6 +860,7 @@ export default function App() {
         {/* Right sidebar */}
         <div
           id="desktop-sidebar"
+          className={isLobbySidebarOpen ? 'open' : ''}
           style={{
             width: '320px',
             background: 'var(--bg-secondary)',
@@ -872,9 +874,13 @@ export default function App() {
             <WaitingRoomSidebar
               room={room}
               currentPlayerId={playerId}
-              onUpdateSetting={(key, value) => roomApi.updateLobbySettings({ [key]: value })}
+              isConnected={isConnected}
+              settingsSyncState={roomApi.settingsSyncState}
+              settingsSyncMessage={roomApi.settingsSyncMessage}
+              onUpdateSettings={roomApi.updateLobbySettings}
               onKickPlayer={roomApi.initiateVoteKick}
               onStartGame={handleStartGame}
+              onClose={isLobbySidebarOpen ? () => setIsLobbySidebarOpen(false) : undefined}
             />
           ) : isMonopoly ? (
             <MonopolySidebar

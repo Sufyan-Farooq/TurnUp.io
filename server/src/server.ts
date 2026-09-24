@@ -8,7 +8,7 @@ import { IPlayer, GameAction, GameState } from './engine/interfaces';
 import { SnakesLaddersRuleset } from './engine/snakesLadders';
 import { LudoRuleset } from './engine/ludo';
 import { UnoRuleset } from './engine/uno';
-import { MonopolyRuleset } from './engine/monopoly';
+import { MonopolyRuleset, getMonopolySpacePrice } from './engine/monopoly';
 import { GameEngineManager } from './engine/interfaces';
 import { prisma } from './db';
 import { hashPassword, verifyPassword, generateToken, verifyToken } from './services/auth';
@@ -510,18 +510,38 @@ function applyPlayerRemovalToGameState(engineManager: GameEngineManager, targetI
       updatedState.subState = 'WAITING_FOR_ROLL';
     }
   } else {
-    // Snakes & Ladders, Ludo, Uno: forfeiting is simpler — just advance the turn if the
-    // departed player was the one blocking progress.
-    if (updatedState.activePlayerId === targetId && updatedState.turnOrder.length > 0) {
-      const nextTurnIndex = (updatedState.turnIndex + 1) % updatedState.turnOrder.length;
-      updatedState.activePlayerId = updatedState.turnOrder[nextTurnIndex];
-      updatedState.turnIndex = nextTurnIndex;
+    // Remove forfeiting players from future rotation. Merely advancing once leaves
+    // the departed id in turnOrder and deadlocks the match when rotation reaches it again.
+    const oldTurnOrder = updatedState.turnOrder;
+    const remainingTurnOrder = oldTurnOrder.filter(id => id !== targetId);
+    if (remainingTurnOrder.length > 0) {
+      if (updatedState.activePlayerId === targetId) {
+        const direction = updatedState.gameType === 'UNO' && gss.direction === -1 ? -1 : 1;
+        let oldIndex = oldTurnOrder.indexOf(targetId);
+        let nextPlayerId = '';
+        for (let i = 0; i < oldTurnOrder.length; i++) {
+          oldIndex = (oldIndex + direction + oldTurnOrder.length) % oldTurnOrder.length;
+          if (oldTurnOrder[oldIndex] !== targetId && remainingTurnOrder.includes(oldTurnOrder[oldIndex])) {
+            nextPlayerId = oldTurnOrder[oldIndex];
+            break;
+          }
+        }
+        updatedState.activePlayerId = nextPlayerId || remainingTurnOrder[0];
+      }
+      updatedState.turnOrder = remainingTurnOrder;
+      updatedState.turnIndex = remainingTurnOrder.indexOf(updatedState.activePlayerId);
+      updatedState.subState = updatedState.gameType === 'UNO' ? 'WAITING_FOR_PLAY' : 'WAITING_FOR_ROLL';
+    } else {
+      updatedState.turnOrder = [];
+      updatedState.activePlayerId = '';
+      updatedState.turnIndex = 0;
     }
   }
 
   engineManager.setCurrentState(updatedState);
 
-  const winnerId = engineManager.getRuleset().checkWinConditions(updatedState);
+  const winnerId = engineManager.getRuleset().checkWinConditions(updatedState)
+    || (updatedState.turnOrder.length === 1 ? updatedState.turnOrder[0] : null);
   if (winnerId) {
     updatedState.status = 'GAME_OVER';
     updatedState.winnerId = winnerId;
@@ -620,19 +640,7 @@ io.on('connection', (socket: Socket) => {
       gameType: gameType as GameRoom['gameType'],
       engineManager: null,
       seed: Math.floor(Math.random() * 1000000000),
-      lobbySettings: {
-        maxPlayers: 4,
-        privateRoom: false,
-        allowBots: false,
-        startingCash: 1500,
-        doubleRentRule: true,
-        vacationCash: false,
-        auction: false,
-        prisonRent: false,
-        evenBuild: true,
-        mortgage: true,
-        randomizeOrder: false
-      },
+      lobbySettings: sanitizeLobbySettings(gameType as GameRoom['gameType'], {}),
       bannedPlayerIds: new Set<string>()
     };
 
@@ -677,9 +685,39 @@ io.on('connection', (socket: Socket) => {
       return callback({ success: false, message: 'Room not found.' });
     }
 
+    const mappedRoomId = playerToRoom[playerId];
+    if (mappedRoomId && mappedRoomId !== roomId && rooms[mappedRoomId]) {
+      return callback({ success: false, message: 'Leave your current room before joining another.' });
+    }
+
     // W-3: Block re-join for players who were vote-kicked from this room
     if (room.bannedPlayerIds && room.bannedPlayerIds.has(playerId)) {
       return callback({ success: false, message: 'You have been removed from this room by a vote kick.' });
+    }
+
+
+    // Treat repeated join attempts as transport recovery, never as a new seat.
+    const existingPlayer = room.players.find(p => p.id === playerId);
+    const existingSpectator = room.spectators?.find(p => p.id === playerId);
+    const existingSession = existingPlayer ?? existingSpectator;
+    if (existingSession) {
+      if (disconnectTimers[playerId]) {
+        clearTimeout(disconnectTimers[playerId]);
+        delete disconnectTimers[playerId];
+      }
+      existingSession.connected = true;
+      existingSession.socketId = socket.id;
+      socket.data.playerId = playerId;
+      socket.data.roomId = roomId;
+      socket.join(roomId);
+      playerToRoom[playerId] = roomId;
+      return callback({
+        success: true,
+        token,
+        isSpectator: Boolean(existingSpectator),
+        room: publicRoomPayload(room),
+        gameState: room.engineManager ? room.engineManager.getAuditedState(playerId) : null
+      });
     }
 
     if (room.status !== 'LOBBY') {
@@ -770,10 +808,10 @@ io.on('connection', (socket: Socket) => {
   // 4. Ready / Toggle Ready States
   socket.on('toggle_ready', (callback: Function) => {
     const { playerId, roomId } = socket.data;
-    if (!playerId || !roomId) return;
+    if (!playerId || !roomId) return callback?.({ success: false, message: 'Not authenticated in a room.' });
 
     const room = rooms[roomId];
-    if (!room || room.status !== 'LOBBY') return;
+    if (!room || room.status !== 'LOBBY') return callback?.({ success: false, message: 'Ready state can only change in the lobby.' });
 
     const player = room.players.find(p => p.id === playerId);
     if (player) {
@@ -787,14 +825,12 @@ io.on('connection', (socket: Socket) => {
   // Client-facing contract: socket.on('start_game', (payload: { config?: {...} }, callback: Function))
   socket.on('start_game', (payload: { config?: Record<string, any> } | undefined, callback?: Function) => {
     const actualCallback = callback;
-    let actualConfig: Record<string, any> = { gameId: socket.data.roomId };
-
-    if (payload && typeof payload === 'object' && payload.config) {
-      actualConfig = { ...actualConfig, ...payload.config };
-    }
 
     const { playerId, roomId } = socket.data;
-    if (!playerId || !roomId) return;
+    if (!playerId || !roomId) {
+      actualCallback?.({ success: false, message: 'Not authenticated in a room.' });
+      return;
+    }
 
     const room = rooms[roomId];
     if (!room || room.hostId !== playerId || room.status !== 'LOBBY') {
@@ -806,6 +842,11 @@ io.on('connection', (socket: Socket) => {
     const allGuestsReady = room.players.every(p => p.id === room.hostId || p.ready);
     if (!allGuestsReady) {
       if (actualCallback) actualCallback({ success: false, message: 'Wait for all players to ready up.' });
+      return;
+    }
+
+    if (room.players.length < 2 && !room.lobbySettings?.allowBots) {
+      if (actualCallback) actualCallback({ success: false, message: 'At least two players are required to start.' });
       return;
     }
 
@@ -867,22 +908,14 @@ io.on('connection', (socket: Socket) => {
       }));
 
       room.engineManager = new GameEngineManager(ruleset);
-      const initialRawState = room.engineManager.initGame(enginePlayers, actualConfig, room.seed);
+      const actualConfig: Record<string, any> = {
+        gameId: room.id,
+        ...sanitizeLobbySettings(room.gameType, {}, room.lobbySettings, room.players.length)
+      };
+      room.engineManager.initGame(enginePlayers, actualConfig, room.seed);
       room.status = 'PLAYING';
 
-      io.to(roomId).emit('game_started', {
-        roomStatus: room.status,
-        room: {
-          id: room.id,
-          name: room.name,
-          hostId: room.hostId,
-          status: room.status,
-          gameType: room.gameType,
-          players: room.players.map(p => ({ id: p.id, name: p.name, connected: p.connected, ready: p.ready, color: p.color })),
-          lobbySettings: room.lobbySettings
-        },
-        gameState: room.engineManager.getAuditedState(room.players[0].id)
-      });
+      emitAuditedGameStarted(room);
 
       // Start the bot execution loop if a bot starts the game
       runBotTurnIfActive(roomId);
@@ -918,11 +951,7 @@ io.on('connection', (socket: Socket) => {
 
     const updatedState = room.engineManager.getCurrentState();
 
-    // Broadcast the full updated state & action event list
-    io.to(roomId).emit('game_state_update', {
-      gameState: updatedState,
-      events: result.events
-    });
+    emitAuditedGameStateUpdate(room, result.events);
 
     // Check if the game is now over
     if (updatedState.status === 'GAME_OVER') {
@@ -962,36 +991,52 @@ io.on('connection', (socket: Socket) => {
   // 9. Handle Appearance Color Selection
   socket.on('select_appearance', (payload: { color: string }, callback: Function) => {
     const { playerId, roomId } = socket.data;
-    if (!playerId || !roomId) return;
+    if (!playerId || !roomId) return callback?.({ success: false, message: 'Not authenticated in a room.' });
 
     const room = rooms[roomId];
-    if (!room || room.status !== 'LOBBY') return;
+    if (!room || room.status !== 'LOBBY') return callback?.({ success: false, message: 'Appearance can only change in the lobby.' });
+
+    const color = payload?.color;
+    const ludoColors = room.lobbySettings?.maxPlayers === 6
+      ? ['#d90429', '#fb8500', '#ffb703', '#38b000', '#00b4d8', '#7b2cbf']
+      : ['#d90429', '#38b000', '#ffb703', '#00b4d8'];
+    if (typeof color !== 'string' || (room.gameType === 'LUDO' ? !ludoColors.includes(color) : !/^#[0-9a-f]{6}$/i.test(color))) {
+      return callback?.({ success: false, message: 'Invalid player color.' });
+    }
+    if (room.gameType === 'LUDO' && room.players.some(p => p.id !== playerId && p.color === color)) {
+      return callback?.({ success: false, message: 'That color is already taken.' });
+    }
 
     const player = room.players.find(p => p.id === playerId);
     if (player) {
-      player.color = payload.color;
-      io.to(roomId).emit('player_appearance_changed', { playerId, color: payload.color });
+      player.color = color;
+      io.to(roomId).emit('player_appearance_changed', { playerId, color });
       if (callback) callback({ success: true });
     }
   });
 
   // 10. Handle Custom Lobby Settings Changes
-  socket.on('update_lobby_settings', (payload: { settings: Record<string, any> }) => {
+  socket.on('update_lobby_settings', (payload: { settings: Record<string, any> }, callback?: Function) => {
     const { playerId, roomId } = socket.data;
-    if (!playerId || !roomId) return;
-
-    const room = rooms[roomId];
-    if (!room || room.hostId !== playerId || room.status !== 'LOBBY') return;
-
-    const incomingSettings = { ...payload.settings };
-    if (room.gameType === 'LUDO' && incomingSettings.maxPlayers !== undefined) {
-      if (incomingSettings.maxPlayers !== 4 && incomingSettings.maxPlayers !== 6) {
-        incomingSettings.maxPlayers = 4;
-      }
+    if (!playerId || !roomId) {
+      callback?.({ success: false, message: 'Not authenticated in a room.' });
+      return;
     }
 
-    room.lobbySettings = { ...(room.lobbySettings || {}), ...incomingSettings };
+    const room = rooms[roomId];
+    if (!room || room.hostId !== playerId || room.status !== 'LOBBY') {
+      callback?.({ success: false, message: 'Only the host can update lobby settings.' });
+      return;
+    }
+
+    room.lobbySettings = sanitizeLobbySettings(
+      room.gameType,
+      payload?.settings,
+      room.lobbySettings,
+      room.players.length
+    );
     io.to(roomId).emit('lobby_settings_updated', { settings: room.lobbySettings });
+    callback?.({ success: true, settings: room.lobbySettings });
   });
 
   // Vote Kick: Initiate a vote kick session against a player
@@ -1120,33 +1165,22 @@ io.on('connection', (socket: Socket) => {
       // If in game, remove the kicked player from the running game state so it is not blocked!
       if (room.status === 'PLAYING' && room.engineManager) {
         const freshState = room.engineManager.getCurrentState();
-        const wasBlocking = freshState.activePlayerId === targetId
-          || (freshState.gameType === 'MONOPOLY' && (
-            (freshState.gameSpecificState.activeTrade && (
-              freshState.gameSpecificState.activeTrade.proposerId === targetId ||
-              freshState.gameSpecificState.activeTrade.receiverId === targetId
-            )) ||
-            (freshState.subState === 'AUCTION' && (freshState.gameSpecificState.auctionBidders || []).includes(targetId))
-          ));
-
         const updatedState = applyPlayerRemovalToGameState(room.engineManager, targetId);
 
         if (updatedState.status === 'GAME_OVER') {
           room.status = 'ENDED';
-      room.endedAt = Date.now();
-          io.to(roomId).emit('game_ended', {
-            winnerId: updatedState.winnerId,
-            gameState: updatedState
-          });
+          room.endedAt = Date.now();
+          emitAuditedGameStateUpdate(room, []);
+          io.to(roomId).emit('game_ended', { winnerId: updatedState.winnerId });
           console.log(`Game in room ${roomId} ended after kick — winner: ${updatedState.winnerId}`);
           saveMatchOutcome(room, updatedState.winnerId, updatedState).catch(err => {
             console.error('Failed to save match outcome to PostgreSQL:', err);
           });
-        } else if (wasBlocking) {
-          io.to(roomId).emit('game_state_update', {
-            gameState: updatedState,
-            events: freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId: targetId, payload: {} }] : []
-          });
+        } else {
+          emitAuditedGameStateUpdate(
+            room,
+            freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId: targetId, payload: {} }] : []
+          );
           runBotTurnIfActive(roomId);
         }
       }
@@ -1268,13 +1302,7 @@ io.on('connection', (socket: Socket) => {
     }
 
     room.gameType = gameType;
-    if (gameType === 'LUDO') {
-      const currentMax = room.lobbySettings?.maxPlayers || 4;
-      if (currentMax !== 4 && currentMax !== 6) {
-        if (!room.lobbySettings) room.lobbySettings = {};
-        room.lobbySettings.maxPlayers = 4;
-      }
-    }
+    room.lobbySettings = sanitizeLobbySettings(gameType, {}, room.lobbySettings, room.players.length);
     room.status = 'LOBBY';
     room.endedAt = undefined;
     room.engineManager = null;
@@ -1338,33 +1366,23 @@ function handlePermanentLeave(roomId: string, playerId: string) {
   if (room.status === 'PLAYING' && room.engineManager) {
     const freshState = room.engineManager.getCurrentState();
     if (freshState.status === 'ACTIVE') {
-      const wasBlocking = freshState.activePlayerId === playerId
-        || (freshState.gameType === 'MONOPOLY' && (
-          (freshState.gameSpecificState.activeTrade && (
-            freshState.gameSpecificState.activeTrade.proposerId === playerId ||
-            freshState.gameSpecificState.activeTrade.receiverId === playerId
-          )) ||
-          (freshState.subState === 'AUCTION' && (freshState.gameSpecificState.auctionBidders || []).includes(playerId))
-        ));
+      const updatedState = applyPlayerRemovalToGameState(room.engineManager, playerId);
 
-      if (wasBlocking) {
-        const updatedState = applyPlayerRemovalToGameState(room.engineManager, playerId);
-
-        if (updatedState.status === 'GAME_OVER') {
-          room.status = 'ENDED';
-      room.endedAt = Date.now();
-          io.to(roomId).emit('game_ended', { winnerId: updatedState.winnerId, gameState: updatedState });
-          console.log(`Game in room ${roomId} ended after permanent disconnect — winner: ${updatedState.winnerId}`);
-          saveMatchOutcome(room, updatedState.winnerId, updatedState).catch(err => {
-            console.error('Failed to save match outcome to PostgreSQL:', err);
-          });
-        } else {
-          io.to(roomId).emit('game_state_update', {
-            gameState: updatedState,
-            events: freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId, payload: {} }] : []
-          });
-          runBotTurnIfActive(roomId);
-        }
+      if (updatedState.status === 'GAME_OVER') {
+        room.status = 'ENDED';
+        room.endedAt = Date.now();
+        emitAuditedGameStateUpdate(room, []);
+        io.to(roomId).emit('game_ended', { winnerId: updatedState.winnerId });
+        console.log(`Game in room ${roomId} ended after permanent disconnect — winner: ${updatedState.winnerId}`);
+        saveMatchOutcome(room, updatedState.winnerId, updatedState).catch(err => {
+          console.error('Failed to save match outcome to PostgreSQL:', err);
+        });
+      } else {
+        emitAuditedGameStateUpdate(
+          room,
+          freshState.gameType === 'MONOPOLY' ? [{ type: 'BANKRUPTCY_DECLARED', playerId, payload: {} }] : []
+        );
+        runBotTurnIfActive(roomId);
       }
     }
   }
@@ -1398,6 +1416,21 @@ function runBotTurnIfActive(roomId: string) {
     const freshRoom = rooms[roomId];
     if (!freshRoom || freshRoom.status !== 'PLAYING' || !freshRoom.engineManager) return;
     const freshState = freshRoom.engineManager.getCurrentState();
+
+    const expectedBotId = (() => {
+      const active = freshState.players.find(p => p.id === freshState.activePlayerId);
+      if (active?.isBot) return active.id;
+      if (freshState.subState === 'AUCTION') {
+        const bidders = freshState.gameSpecificState.auctionBidders || [];
+        const bidderId = bidders[freshState.gameSpecificState.auctionActiveBidderIndex || 0];
+        return freshState.players.find(p => p.id === bidderId)?.isBot ? bidderId : '';
+      }
+      return '';
+    })();
+    if (expectedBotId !== botPlayerId) {
+      runBotTurnIfActive(roomId);
+      return;
+    }
 
     const subState = freshState.subState;
     const gameType = freshState.gameType;
@@ -1526,7 +1559,8 @@ function runBotTurnIfActive(roomId: string) {
         actionType = 'ROLL_DICE';
       } else if (subState === 'WAITING_FOR_BUY_OR_PASS') {
         const cash = freshState.gameSpecificState.cash[botPlayerId] || 0;
-        const propPrice = 150;
+        const position = freshState.gameSpecificState.positions[botPlayerId];
+        const propPrice = getMonopolySpacePrice(position) ?? Number.POSITIVE_INFINITY;
         if (cash >= propPrice && Math.random() < 0.7) {
           actionType = 'BUY_PROPERTY';
         } else {
@@ -1544,9 +1578,10 @@ function runBotTurnIfActive(roomId: string) {
       } else if (subState === 'DEBT_OR_BANKRUPT') {
         const properties = freshState.gameSpecificState.properties || {};
         let mortgagedAny = false;
+        const mortgageEnabled = freshState.gameSpecificState.config?.mortgage !== false;
         for (const [idxStr, prop] of Object.entries(properties) as any) {
           const idx = parseInt(idxStr, 10);
-          if (prop.ownerId === botPlayerId && !prop.mortgaged && prop.houses === 0) {
+          if (mortgageEnabled && prop.ownerId === botPlayerId && !prop.mortgaged && prop.houses === 0) {
             actionType = 'MORTGAGE';
             actionPayload = { spaceIndex: idx };
             mortgagedAny = true;
@@ -1580,10 +1615,7 @@ function runBotTurnIfActive(roomId: string) {
     const result = freshRoom.engineManager.handleIncomingAction(gameAction);
     if (result.isValid) {
       const nextFreshState = freshRoom.engineManager.getCurrentState();
-      io.to(roomId).emit('game_state_update', {
-        gameState: nextFreshState,
-        events: result.events
-      });
+      emitAuditedGameStateUpdate(freshRoom, result.events);
 
       if (nextFreshState.status === 'GAME_OVER') {
         freshRoom.status = 'ENDED';
@@ -1646,6 +1678,115 @@ if (require.main === module) {
 
   process.once('SIGTERM', () => shutdown('SIGTERM'));
   process.once('SIGINT', () => shutdown('SIGINT'));
+}
+
+const BASE_LOBBY_SETTINGS = {
+  maxPlayers: 4,
+  privateRoom: false,
+  allowBots: false,
+  startingCash: 1500,
+  doubleRentRule: true,
+  vacationCash: false,
+  auction: false,
+  prisonRent: false,
+  evenBuild: true,
+  mortgage: true,
+  randomizeOrder: false,
+  cardStacking: true,
+  cardDoubles: true
+};
+
+const BOOLEAN_LOBBY_SETTINGS = [
+  'privateRoom', 'allowBots', 'doubleRentRule', 'vacationCash', 'auction',
+  'prisonRent', 'evenBuild', 'mortgage', 'randomizeOrder', 'cardStacking',
+  'cardDoubles'
+] as const;
+
+function allowedPlayerCounts(gameType: GameRoom['gameType']): number[] {
+  if (gameType === 'LUDO') return [4, 6];
+  if (gameType === 'MONOPOLY') return [2, 3, 4];
+  return [2, 3, 4, 5, 6];
+}
+
+/**
+ * Treat lobby settings as server-owned input. Unknown keys and values with the
+ * wrong type are ignored, while numeric settings are restricted to the values
+ * exposed by the UI. Keeping this centralized also makes rematches and game
+ * type changes use the same rules as initial room creation.
+ */
+function sanitizeLobbySettings(
+  gameType: GameRoom['gameType'],
+  incoming: unknown,
+  previous: Record<string, any> = BASE_LOBBY_SETTINGS,
+  currentPlayerCount = 1
+): Record<string, any> {
+  const source = incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+    ? incoming as Record<string, unknown>
+    : {};
+  const next: Record<string, any> = { ...BASE_LOBBY_SETTINGS, ...previous };
+
+  for (const key of BOOLEAN_LOBBY_SETTINGS) {
+    if (typeof source[key] === 'boolean') next[key] = source[key];
+  }
+
+  if (typeof source.startingCash === 'number' && [1000, 1500, 2000, 2500].includes(source.startingCash)) {
+    next.startingCash = source.startingCash;
+  }
+
+  const counts = allowedPlayerCounts(gameType);
+  if (typeof source.maxPlayers === 'number' && Number.isInteger(source.maxPlayers) && counts.includes(source.maxPlayers)) {
+    // Never accept a setting that would silently strand players already in the lobby.
+    if (source.maxPlayers >= currentPlayerCount) next.maxPlayers = source.maxPlayers;
+  }
+  if (!counts.includes(next.maxPlayers) || next.maxPlayers < currentPlayerCount) {
+    next.maxPlayers = counts.find(count => count >= currentPlayerCount) ?? counts[counts.length - 1];
+  }
+
+  return next;
+}
+
+function publicRoomPayload(room: GameRoom) {
+  return {
+    id: room.id,
+    name: room.name,
+    hostId: room.hostId,
+    status: room.status,
+    gameType: room.gameType,
+    players: room.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      connected: p.connected,
+      ready: p.ready,
+      color: p.color
+    })),
+    lobbySettings: room.lobbySettings
+  };
+}
+
+function connectedRoomSessions(room: GameRoom): PlayerSession[] {
+  return [...room.players, ...(room.spectators || [])].filter(session => session.connected && session.socketId);
+}
+
+/** Emit a separately redacted state to every human transport in the room. */
+function emitAuditedGameStarted(room: GameRoom): void {
+  if (!room.engineManager) return;
+  for (const session of connectedRoomSessions(room)) {
+    io.to(session.socketId!).emit('game_started', {
+      roomStatus: room.status,
+      room: publicRoomPayload(room),
+      gameState: room.engineManager.getAuditedState(session.id)
+    });
+  }
+}
+
+function emitAuditedGameStateUpdate(room: GameRoom, events: any[]): void {
+  if (!room.engineManager) return;
+  for (const session of connectedRoomSessions(room)) {
+    io.to(session.socketId!).emit('game_state_update', {
+      gameState: room.engineManager.getAuditedState(session.id),
+      events
+    });
+  }
 }
 
 export { app, httpServer, io, rooms };

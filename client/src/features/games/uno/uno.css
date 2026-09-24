@@ -78,6 +78,19 @@
   justify-content: center;
 }
 
+.uno-action-bar button,
+.uno-selection-bar button {
+  min-height: 44px;
+}
+
+.uno-action-bar button:disabled,
+.uno-selection-bar button:disabled,
+.uno-opponent-seat button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none !important;
+}
+
 .uno-hand-wrap {
   display: flex;
   flex-direction: column;
@@ -94,6 +107,37 @@
   overflow-x: auto;
   width: 100%;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.uno-hand-row .uno-card {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+
+.uno-hand-row .uno-card:focus-visible {
+  outline: 5px solid var(--accent-gold);
+  outline-offset: 5px;
+}
+
+@media (max-width: 720px) {
+  .uno-action-bar {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .uno-action-bar button {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  .uno-selection-bar {
+    max-width: calc(100vw - 32px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 
 .uno-selection-bar {

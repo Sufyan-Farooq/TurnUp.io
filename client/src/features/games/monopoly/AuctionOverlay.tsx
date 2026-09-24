@@ -27,6 +27,9 @@ export const AuctionOverlay: React.FC<AuctionOverlayProps> = ({ gameState, room,
   const space = MONOPOLY_BOARD[auctionSpaceIndex];
   const activeBidderId = auctionBidders[auctionActiveBidderIndex];
   const isActiveBidderMe = activeBidderId === currentUserId;
+  const nextBid = auctionCurrentBid + BID_INCREMENT;
+  const availableCash = gameState.gameSpecificState.cash[currentUserId] ?? 0;
+  const canAffordBid = availableCash >= nextBid;
 
   const activeBidderName = room?.players?.find(p => p.id === activeBidderId)?.name || 'Unknown';
   const highestBidderName = auctionHighestBidderId ? (room?.players?.find(p => p.id === auctionHighestBidderId)?.name || 'Unknown') : 'No bids yet';
@@ -102,11 +105,12 @@ export const AuctionOverlay: React.FC<AuctionOverlayProps> = ({ gameState, room,
         {isActiveBidderMe ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
             <button
-              onClick={() => onBid(auctionCurrentBid + BID_INCREMENT)}
+              onClick={() => onBid(nextBid)}
+              disabled={!canAffordBid}
               className="btn-primary"
               style={{ padding: '10px', fontWeight: 'bold', fontSize: '13px', background: 'linear-gradient(135deg, var(--accent-gold) 0%, #e89b00 100%)', boxShadow: '0 4px 15px rgba(255,183,3,0.3)' }}
             >
-              Bid ${auctionCurrentBid + BID_INCREMENT}
+              {canAffordBid ? `Bid $${nextBid}` : `Need $${nextBid} to bid`}
             </button>
             <button onClick={onFold} className="btn-secondary" style={{ padding: '8px', fontSize: '12px' }}>
               Fold / Pass

@@ -70,6 +70,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const cashValue = gameState.gameSpecificState?.cash?.[currentUserId] || 0;
   const lastRoll = gameState.gameSpecificState?.lastRoll;
+  const currentSpace = MONOPOLY_BOARD[positions[currentUserId]];
+  const canBuyCurrentSpace = !!currentSpace?.price && cashValue >= currentSpace.price;
 
   const activePlayer = room?.players?.find(p => p.id === gameState.activePlayerId);
   const activePlayerName = activePlayer ? activePlayer.name : 'Unknown';
@@ -164,8 +166,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
                 {subState === 'WAITING_FOR_BUY_OR_PASS' && (
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={onBuyProperty} className="btn-primary" style={{ padding: '12px 24px', fontSize: '13.5px', background: 'linear-gradient(135deg, var(--gold) 0%, #cc8800 100%)', boxShadow: '0 4px 15px var(--gold-glow)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Building2 size={14} /> Buy Property
+                    <button onClick={onBuyProperty} disabled={!canBuyCurrentSpace} className="btn-primary" style={{ padding: '12px 24px', fontSize: '13.5px', background: 'linear-gradient(135deg, var(--gold) 0%, #cc8800 100%)', boxShadow: '0 4px 15px var(--gold-glow)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Building2 size={14} /> {canBuyCurrentSpace ? `Buy for $${currentSpace.price}` : 'Not enough cash'}
                     </button>
                     <button onClick={onEndTurn} className="btn-secondary" style={{ padding: '12px 24px', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       Pass <ArrowRight size={14} />

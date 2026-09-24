@@ -162,4 +162,83 @@ describe('Full room -> game flow (socket.io integration)', () => {
     const rejection = await rejectionPromise;
     expect(rejection.error).toBe('Vote kick requires at least three players.');
   }, 15000);
+
+  it('keeps lobby settings server-authoritative and rejects non-host updates', async () => {
+    const hostToken = generateToken({ id: 'settings-host', username: 'SettingsHost', role: 'USER' });
+    const guestToken = generateToken({ id: 'settings-guest', username: 'SettingsGuest', role: 'USER' });
+
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Authoritative Settings', token: hostToken, gameType: 'MONOPOLY'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+
+    const guestUpdate: any = await emitWithAck(guestClient, 'update_lobby_settings', {
+      settings: { startingCash: 2500 }
+    });
+    expect(guestUpdate).toEqual(expect.objectContaining({ success: false }));
+
+    const hostUpdate: any = await emitWithAck(hostClient, 'update_lobby_settings', {
+      settings: { startingCash: 2500, auction: true, maxPlayers: 3, unknownRule: true }
+    });
+    expect(hostUpdate).toEqual(expect.objectContaining({
+      success: true,
+      settings: expect.objectContaining({ startingCash: 2500, auction: true, maxPlayers: 3 })
+    }));
+    expect(hostUpdate.settings.unknownRule).toBeUndefined();
+
+    await emitWithAck(guestClient, 'toggle_ready');
+    const startedPromise = waitForEvent<any>(hostClient, 'game_started');
+    const started: any = await emitWithAck(hostClient, 'start_game', {
+      config: { startingCash: 1, auction: false, maxPlayers: 99 }
+    });
+    expect(started.success).toBe(true);
+    const payload = await startedPromise;
+    expect(payload.gameState.gameSpecificState.config).toEqual(expect.objectContaining({
+      startingCash: 2500,
+      auction: true
+    }));
+    expect(payload.gameState.gameSpecificState.cash['settings-host']).toBe(2500);
+  }, 15000);
+
+  it('sends each UNO player a separately redacted state', async () => {
+    const hostToken = generateToken({ id: 'uno-host', username: 'UnoHost', role: 'USER' });
+    const guestToken = generateToken({ id: 'uno-guest', username: 'UnoGuest', role: 'USER' });
+
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'UNO Privacy', token: hostToken, gameType: 'UNO'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+    await emitWithAck(hostClient, 'update_lobby_settings', {
+      settings: { cardStacking: false, cardDoubles: false }
+    });
+    await emitWithAck(guestClient, 'toggle_ready');
+
+    const hostStarted = waitForEvent<any>(hostClient, 'game_started');
+    const guestStarted = waitForEvent<any>(guestClient, 'game_started');
+    const startResult: any = await emitWithAck(hostClient, 'start_game', {
+      config: { cardStacking: true, cardDoubles: true }
+    });
+    expect(startResult.success).toBe(true);
+
+    const [hostPayload, guestPayload] = await Promise.all([hostStarted, guestStarted]);
+    const hostState = hostPayload.gameState.gameSpecificState;
+    const guestState = guestPayload.gameState.gameSpecificState;
+
+    expect(Array.isArray(hostState.hands['uno-host'])).toBe(true);
+    expect(hostState.hands['uno-guest']).toBe(7);
+    expect(Array.isArray(guestState.hands['uno-guest'])).toBe(true);
+    expect(guestState.hands['uno-host']).toBe(7);
+    expect(typeof hostState.deck).toBe('number');
+    expect(typeof guestState.deck).toBe('number');
+    expect(hostState.rules).toEqual({ cardStacking: false, cardDoubles: false });
+    expect(guestState.rules).toEqual({ cardStacking: false, cardDoubles: false });
+  }, 15000);
 });

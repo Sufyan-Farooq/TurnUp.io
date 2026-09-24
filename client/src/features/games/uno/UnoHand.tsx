@@ -32,6 +32,25 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
   const pendingDraw = gameState.gameSpecificState.pendingDrawCount || 0;
   const isPlayOrPass = gameState.subState === 'PLAY_OR_PASS';
 
+  const isPlayableNow = (cardIndex: number) => {
+    const card = hand[cardIndex];
+    if (!card || !isMyTurn) return false;
+    if (isPlayOrPass && cardIndex !== hand.length - 1) return false;
+    if (pendingDraw > 0) {
+      if (!rules.cardStacking) return false;
+      const currentValue = gameState.gameSpecificState.currentCard?.value;
+      return (currentValue === 'draw2' && (card.value === 'draw2' || card.value === 'wildDraw4'))
+        || (currentValue === 'wildDraw4' && card.value === 'wildDraw4');
+    }
+    return isCardPlayable(card, gameState.gameSpecificState.currentCard, gameState.gameSpecificState.currentColor);
+  };
+
+  const selectedCardsCanPlay = selectedCardIndices.length === 1
+    ? isPlayableNow(selectedCardIndices[0])
+    : selectedCardIndices.length === 2
+      && selectedCardIndices.some(isPlayableNow)
+      && hand[selectedCardIndices[0]]?.value === hand[selectedCardIndices[1]]?.value;
+
   // Selection is transient UI state — clear it whenever the turn/substate changes
   // or the hand size changes (a card was played/drawn), mirroring the explicit
   // `setSelectedCardIndices([])` calls the original App.tsx made after every
@@ -52,6 +71,7 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
             {selectedCardIndices.length === 1 && (
               <button
                 className="btn-primary"
+                disabled={!selectedCardsCanPlay}
                 style={{ padding: '6px 16px', fontSize: '12px', borderRadius: '12px' }}
                 onClick={() => onPlayCard(selectedCardIndices[0])}
               >
@@ -61,6 +81,7 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
             {selectedCardIndices.length === 2 && (
               <button
                 className="btn-primary"
+                disabled={!selectedCardsCanPlay}
                 style={{ padding: '6px 16px', fontSize: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-orange) 100%)', boxShadow: '0 0 10px rgba(255, 183, 3, 0.4)' }}
                 onClick={() => onPlayDoubles(selectedCardIndices)}
               >
@@ -85,27 +106,50 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
           const isSelected = selectedCardIndices.includes(idx);
 
           // Validation for single card selection eligibility
-          let playable = isMyTurn &&
-            (!isPlayOrPass || isDrawnCard) &&
-            isCardPlayable(card, gameState.gameSpecificState.currentCard, gameState.gameSpecificState.currentColor);
+          const playable = isPlayableNow(idx);
 
-          // Under draw penalty, we can stack if stacking rule is enabled and the card is draw2 or wildDraw4
-          if (pendingDraw > 0) {
-            if (rules.cardStacking) {
-              const currentVal = gameState.gameSpecificState.currentCard?.value;
-              playable = isMyTurn && (
-                (currentVal === 'draw2' && (card.value === 'draw2' || card.value === 'wildDraw4')) ||
-                (currentVal === 'wildDraw4' && card.value === 'wildDraw4')
-              );
-            } else {
-              playable = false;
+          const handleCardInteraction = () => {
+            if (!isMyTurn) return;
+
+            if (pendingDraw > 0 && !playable) {
+              onError(rules.cardStacking
+                ? 'Stack a compatible draw card or take the penalty.'
+                : 'Card stacking is off. Draw the penalty cards.');
+              return;
             }
-          }
+            if (isPlayOrPass && !isDrawnCard) {
+              onError('Only the card you just drew can be played now.');
+              return;
+            }
+
+            if (rules.cardDoubles && !isPlayOrPass) {
+              if (isSelected) {
+                setSelectedCardIndices(prev => prev.filter(x => x !== idx));
+              } else if (selectedCardIndices.length === 0) {
+                setSelectedCardIndices([idx]);
+              } else if (selectedCardIndices.length === 1) {
+                const firstCard = hand[selectedCardIndices[0]];
+                setSelectedCardIndices(firstCard?.value === card.value
+                  ? [selectedCardIndices[0], idx]
+                  : [idx]);
+              } else {
+                setSelectedCardIndices([idx]);
+              }
+            } else if (playable) {
+              onPlayCard(idx);
+            } else {
+              onError('This card does not match the color or value.');
+            }
+          };
 
           return (
             <div
               key={idx}
               className={`uno-card card-${card.color}`}
+              role="button"
+              tabIndex={isMyTurn ? 0 : -1}
+              aria-label={`${card.color} ${card.value}${playable ? ', playable' : ', not playable'}`}
+              aria-pressed={isSelected}
               style={{
                 borderWidth: (isPlayOrPass && isDrawnCard) ? '4px' : (playable || isSelected) ? '3.5px' : '2.5px',
                 borderColor: (isPlayOrPass && isDrawnCard) ? 'var(--accent-gold)' : isSelected ? 'var(--accent-gold)' : playable ? '#fff' : undefined,
@@ -124,43 +168,11 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
                 opacity: (selectedCardIndices.length > 0 && !isSelected) ? 0.6 : 1,
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-              onClick={() => {
-                if (!isMyTurn) return;
-
-                if (pendingDraw > 0 && !playable) {
-                  onError('You must stack a +2/+4 or draw penalty cards!');
-                  return;
-                }
-                if (isPlayOrPass && !isDrawnCard) {
-                  onError('You can only play the drawn card or pass!');
-                  return;
-                }
-
-                // If doubles rule is enabled, manage multi-selection (tap-to-select-then-play)
-                if (rules.cardDoubles && !isPlayOrPass) {
-                  if (isSelected) {
-                    setSelectedCardIndices(prev => prev.filter(x => x !== idx));
-                  } else if (selectedCardIndices.length === 0) {
-                    setSelectedCardIndices([idx]);
-                  } else if (selectedCardIndices.length === 1) {
-                    const firstCard = hand[selectedCardIndices[0]];
-                    if (firstCard.value === card.value) {
-                      setSelectedCardIndices([selectedCardIndices[0], idx]);
-                    } else {
-                      // If value does not match, switch selection to this card
-                      setSelectedCardIndices([idx]);
-                    }
-                  } else {
-                    // Max 2 cards, reset selection to new card
-                    setSelectedCardIndices([idx]);
-                  }
-                } else {
-                  // Legacy single-tap instant play (if playable)
-                  if (playable) {
-                    onPlayCard(idx);
-                  } else {
-                    onError('This card is not playable right now!');
-                  }
+              onClick={handleCardInteraction}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleCardInteraction();
                 }
               }}
             >

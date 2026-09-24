@@ -19,16 +19,37 @@ export interface Player {
   color?: string;
 }
 
+export type GameType = 'SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY';
+
+/** Host-controlled rules shared by the lobby UI and socket contract. */
+export interface LobbySettings {
+  maxPlayers: number;
+  privateRoom: boolean;
+  allowBots: boolean;
+  startingCash: number;
+  doubleRentRule: boolean;
+  vacationCash: boolean;
+  auction: boolean;
+  prisonRent: boolean;
+  mortgage: boolean;
+  evenBuild: boolean;
+  randomizeOrder: boolean;
+  cardStacking: boolean;
+  cardDoubles: boolean;
+}
+
+export type LobbySettingsPatch = Partial<LobbySettings>;
+
 /** Lobby/room-level state (pre-game and post-game "container"). */
 export interface Room {
   id: string;
   name: string;
   hostId: string;
   status: 'LOBBY' | 'PLAYING' | 'ENDED';
-  gameType: string;
+  gameType: GameType;
   players: Player[];
   /** Host-configured game options (maxPlayers, startingCash, etc.). */
-  lobbySettings?: Record<string, any>;
+  lobbySettings?: LobbySettingsPatch;
 }
 
 /** In-progress game state, as broadcast by the server's engine manager. */

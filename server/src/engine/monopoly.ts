@@ -62,6 +62,11 @@ const MONOPOLY_BOARD: MonopolySpace[] = [
   { name: 'New York', type: 'property', group: 'united-states-of-america', price: 400, rent: [50, 200, 600, 1400, 1700, 2000], houseCost: 200, mortgageValue: 200 } // 47
 ];
 
+export function getMonopolySpacePrice(spaceIndex: number): number | null {
+  const price = MONOPOLY_BOARD[spaceIndex]?.price;
+  return typeof price === 'number' ? price : null;
+}
+
 const TREASURE_DECK = [
   { text: "Advance to START. (Collect $200)", action: { type: "move-to-block", blockIndex: 0, collectGo: true } },
   { text: "You found a wallet containing some cash. Collect $200.", action: { type: "money-event", moneyType: "earn", amount: 200 } },

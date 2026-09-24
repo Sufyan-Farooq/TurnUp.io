@@ -30,3 +30,33 @@
   align-items: center;
   gap: 8px;
 }
+
+.ludo-token.interactive {
+  cursor: pointer;
+}
+
+.ludo-token.interactive:focus-visible,
+.dice-3d[role="button"]:focus-visible {
+  outline: 6px solid #fff;
+  outline-offset: 5px;
+}
+
+.ludo-action-bar button {
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .ludo-action-bar {
+    width: 100%;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .ludo-action-bar__prompt {
+    padding: 10px 14px;
+  }
+
+  .ludo-action-bar__prompt-text {
+    font-size: 14px;
+  }
+}

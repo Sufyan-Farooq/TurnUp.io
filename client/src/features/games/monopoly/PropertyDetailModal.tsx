@@ -47,6 +47,11 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   const isSpaceMortgaged = !!(prop && prop.mortgaged);
   const headerColor = space.group ? (colorGroupMap[space.group] || '#7b2cbf') : '#ffffff';
   const mortgageEnabled = gameState.gameSpecificState?.config?.mortgage !== false;
+  const cashValue = gameState.gameSpecificState?.cash?.[currentUserId] ?? 0;
+  const houseCost = space.houseCost ?? 0;
+  const unmortgageCost = Math.round((space.mortgageValue ?? (space.price ?? 0) * 0.5) * 1.1);
+  const canBuild = !isSpaceMortgaged && (prop?.houses ?? 0) < 5 && cashValue >= houseCost;
+  const canUnmortgage = cashValue >= unmortgageCost;
 
   return (
     <div style={{
@@ -64,7 +69,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
       borderRadius: '8px',
       padding: '16px',
       boxSizing: 'border-box'
-    }}>
+    }} role="dialog" aria-modal="true" aria-label={`${space.name} property details`}>
       <div className="glass-panel" style={{
         width: '320px',
         background: 'rgba(30, 20, 50, 0.95)',
@@ -88,6 +93,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
         }}>
           <button
             onClick={onClose}
+            aria-label="Close property details"
             style={{
               position: 'absolute',
               top: '12px',
@@ -230,9 +236,9 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   onClick={() => onBuildHouse(spaceIndex)}
-                  disabled={isSpaceMortgaged || prop.houses >= 5}
+                  disabled={!canBuild}
                   className="btn-primary"
-                  style={{ flex: 1, padding: '8px', fontSize: '12px', fontWeight: 'bold', opacity: (isSpaceMortgaged || prop.houses >= 5) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  style={{ flex: 1, padding: '8px', fontSize: '12px', fontWeight: 'bold', opacity: canBuild ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 >
                   <Hammer size={13} /> Build (+${space.houseCost})
                 </button>
@@ -251,9 +257,9 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
               {mortgageEnabled && (
                 <button
                   onClick={() => (isSpaceMortgaged ? onUnmortgage(spaceIndex) : onMortgage(spaceIndex))}
-                  disabled={prop.houses > 0}
+                  disabled={prop.houses > 0 || (isSpaceMortgaged && !canUnmortgage)}
                   className="btn-secondary"
-                  style={{ flex: 1, padding: '8px', fontSize: '12px', fontWeight: 'bold', opacity: prop.houses > 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  style={{ flex: 1, padding: '8px', fontSize: '12px', fontWeight: 'bold', opacity: (prop.houses > 0 || (isSpaceMortgaged && !canUnmortgage)) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 >
                   {isSpaceMortgaged ? <Landmark size={13} /> : <Coins size={13} />}
                   {isSpaceMortgaged ? 'Unmortgage' : 'Mortgage'}

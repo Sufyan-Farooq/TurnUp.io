@@ -2,6 +2,7 @@ import React from 'react';
 import { Ban, Layers, Palette, RefreshCw, ShieldAlert } from 'lucide-react';
 import type { UnoCard, UnoGameStateLike, UnoRoomLike } from './uno.types';
 import { getHandCount } from './uno.types';
+import './uno.css';
 
 export interface UnoBoardProps {
   gameState: UnoGameStateLike;
@@ -126,13 +127,15 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
 
             <div className="uno-opponent-footer">
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{cardCount} cards</span>
-              {cardCount === 1 && (
+              {cardCount === 1 && !isVulnerable && (
                 <span className="badge-uno" style={{ backgroundColor: 'var(--accent-pink)', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>
                   UNO!
                 </span>
               )}
               <button
                 onClick={() => onChallengeUno(p.id)}
+                disabled={!isVulnerable}
+                aria-label={isVulnerable ? `Challenge ${p.name}'s missed UNO call` : `${p.name} cannot be challenged`}
                 className="btn-secondary"
                 style={{
                   padding: '2px 6px',
@@ -146,7 +149,7 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
                   boxShadow: isVulnerable ? '0 0 10px var(--accent-pink)' : undefined
                 }}
               >
-                <ShieldAlert size={11} /> Challenge
+                <ShieldAlert size={11} /> {isVulnerable ? 'Challenge' : 'Safe'}
               </button>
             </div>
           </div>

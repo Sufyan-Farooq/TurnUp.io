@@ -36,6 +36,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
   const inJail = gameState.gameSpecificState.inJail || {};
   const bankrupt = gameState.gameSpecificState.bankrupt || {};
   const mortgageEnabled = gameState.gameSpecificState?.config?.mortgage !== false;
+  const currentUserCash = cash[currentUserId] ?? 0;
 
   const myOwnedProperties = Object.entries(properties)
     .map(([idx, prop]) => ({ index: parseInt(idx, 10), prop }))
@@ -221,6 +222,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
                   {mortgageEnabled && prop.mortgaged && (
                     <button
                       onClick={() => onUnmortgage(index)}
+                      disabled={currentUserCash < Math.round((space.mortgageValue ?? (space.price || 0) * 0.5) * 1.1)}
                       className="btn-primary"
                       style={{ padding: '4px 10px', fontSize: '11px', boxShadow: 'none', height: '28px', display: 'flex', alignItems: 'center' }}
                     >
@@ -243,6 +245,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
                       {isStreet && prop.houses < 5 && (
                         <button
                           onClick={() => onBuildHouse(index)}
+                          disabled={currentUserCash < (space.houseCost ?? 0)}
                           className="btn-primary"
                           style={{ padding: '4px 10px', fontSize: '11px', boxShadow: 'none', height: '28px', display: 'flex', alignItems: 'center' }}
                         >

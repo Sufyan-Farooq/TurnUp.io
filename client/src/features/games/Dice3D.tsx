@@ -88,6 +88,15 @@ export const Dice3D: React.FC<Dice3DProps> = ({ value, isRolling, onClick, size 
       <div
         className={`dice-3d ${isRolling ? 'dice-rolling' : ''}`}
         onClick={onClick}
+        onKeyDown={(event) => {
+          if (onClick && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            onClick();
+          }
+        }}
+        role={onClick ? 'button' : 'img'}
+        tabIndex={onClick ? 0 : -1}
+        aria-label={onClick ? `Roll dice, currently showing ${value}` : `Dice showing ${value}`}
         style={{
           ...style,
           width: `${size}px`,

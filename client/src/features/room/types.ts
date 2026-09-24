@@ -16,15 +16,7 @@ export interface Player {
   color?: string;
 }
 
-export interface Room {
-  id: string;
-  name: string;
-  hostId: string;
-  status: 'LOBBY' | 'PLAYING' | 'ENDED';
-  gameType: string;
-  players: Player[];
-  lobbySettings?: Record<string, any>;
-}
+export type { LobbySettings, LobbySettingsPatch, Room } from '../../types/game';
 
 export interface ChatMessage {
   playerId: string;

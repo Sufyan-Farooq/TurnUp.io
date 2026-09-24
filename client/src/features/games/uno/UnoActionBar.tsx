@@ -28,6 +28,7 @@ export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUs
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const hand = getOwnHand(gameState, currentUserId);
   const hasUnoEligible = hand.length > 0 && hand.length <= 2;
+  const hasDeclaredUno = !!gameState.gameSpecificState.unoDeclared?.[currentUserId];
   const isPlayOrPass = gameState.subState === 'PLAY_OR_PASS';
   const hasDrawnCard = hand.length > 0;
   const isDrawnCardPlayable = hasDrawnCard && isCardPlayable(hand[hand.length - 1], gameState.gameSpecificState.currentCard, gameState.gameSpecificState.currentColor);
@@ -72,10 +73,11 @@ export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUs
       {hasUnoEligible && (
         <button
           onClick={onDeclareUno}
+          disabled={hasDeclaredUno}
           className="btn-primary"
           style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, var(--accent-pink) 0%, #b3001e 100%)', boxShadow: '0 0 15px rgba(217,4,41,0.4)' }}
         >
-          <Megaphone size={16} /> Yell UNO!
+          <Megaphone size={16} /> {hasDeclaredUno ? 'UNO declared' : 'Declare UNO'}
         </button>
       )}
     </div>

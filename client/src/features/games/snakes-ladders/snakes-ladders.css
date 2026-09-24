@@ -12,3 +12,20 @@
 .sl-action-bar__waiting {
   color: var(--text-secondary);
 }
+
+.sl-action-bar button {
+  min-height: 44px;
+}
+
+.sl-action-bar .dice-3d[role="button"]:focus-visible {
+  outline: 6px solid #fff;
+  outline-offset: 5px;
+}
+
+@media (max-width: 720px) {
+  .sl-action-bar {
+    width: 100%;
+    gap: 10px;
+    justify-content: center;
+  }
+}
