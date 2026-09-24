@@ -20,6 +20,7 @@ interface PlayerSession {
   ready: boolean;
   handshakeToken: string;
   color?: string; // Optional chosen color for token/avatar
+  socketId?: string; // Latest transport for this identity; rejects stale disconnects
 }
 
 interface VoteKickSession {
@@ -61,6 +62,7 @@ if (!corsOriginEnv) {
 }
 
 const app = express();
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -73,6 +75,7 @@ const io = new Server(httpServer, {
 
 // Port configuration
 const PORT = process.env.PORT || 3000;
+let isShuttingDown = false;
 
 // Shared state
 const rooms: Record<string, GameRoom> = {};
@@ -81,6 +84,23 @@ const disconnectTimers: Record<string, NodeJS.Timeout> = {};
 
 app.use(helmet());
 app.use(express.json());
+
+app.get('/api/health/live', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/api/health/ready', async (_req, res) => {
+  if (isShuttingDown) {
+    return res.status(503).json({ status: 'shutting_down' });
+  }
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'ready' });
+  } catch (error) {
+    console.error('Readiness check failed:', error);
+    res.status(503).json({ status: 'not_ready' });
+  }
+});
 
 // Enable manual CORS, restricted to the configured allow-list
 app.use((req, res, next) => {
@@ -530,7 +550,9 @@ io.on('connection', (socket: Socket) => {
     }
 
     const player = room.players.find(p => p.id === playerId);
-    if (!player) {
+    const spectator = room.spectators?.find(p => p.id === playerId);
+    const session = player ?? spectator;
+    if (!session) {
       return callback({ success: false, message: 'Player session not found in this room.' });
     }
 
@@ -546,7 +568,8 @@ io.on('connection', (socket: Socket) => {
     socket.data.roomId = roomId;
 
     socket.join(roomId);
-    player.connected = true;
+    session.connected = true;
+    session.socketId = socket.id;
     playerToRoom[playerId] = roomId;
 
     callback({
@@ -560,12 +583,13 @@ io.on('connection', (socket: Socket) => {
         players: room.players.map(p => ({ id: p.id, name: p.name, connected: p.connected, ready: p.ready, color: p.color })),
         lobbySettings: room.lobbySettings
       },
-      gameState: room.engineManager ? room.engineManager.getAuditedState(playerId) : null
+      gameState: room.engineManager ? room.engineManager.getAuditedState(playerId) : null,
+      isSpectator: Boolean(spectator)
     });
 
     // Notify others
-    socket.to(roomId).emit('player_reconnected', { playerId });
-    console.log(`Player ${player.name} (${playerId}) reconnected to room ${roomId}`);
+    if (player) socket.to(roomId).emit('player_reconnected', { playerId });
+    console.log(`${spectator ? 'Spectator' : 'Player'} ${session.name} (${playerId}) reconnected to room ${roomId}`);
   });
 
   // 2. Room Creation
@@ -574,6 +598,11 @@ io.on('connection', (socket: Socket) => {
     const decoded = verifyToken(token);
     if (!decoded) {
       return callback({ success: false, message: 'Invalid authentication token.' });
+    }
+
+    const supportedGameTypes: GameRoom['gameType'][] = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
+    if (!supportedGameTypes.includes(gameType as GameRoom['gameType'])) {
+      return callback({ success: false, message: 'Unsupported game type.' });
     }
 
     const playerId = decoded.id;
@@ -585,10 +614,10 @@ io.on('connection', (socket: Socket) => {
       name: name || `${username}'s Game`,
       hostId: playerId,
       players: [
-        { id: playerId, name: username, connected: true, ready: true, handshakeToken: token }
+        { id: playerId, name: username, connected: true, ready: true, handshakeToken: token, socketId: socket.id }
       ],
       status: 'LOBBY',
-      gameType: (gameType as any) || 'SNAKES_LADDERS',
+      gameType: gameType as GameRoom['gameType'],
       engineManager: null,
       seed: Math.floor(Math.random() * 1000000000),
       lobbySettings: {
@@ -659,7 +688,8 @@ io.on('connection', (socket: Socket) => {
         name: username,
         connected: true,
         ready: false,
-        handshakeToken: token
+        handshakeToken: token,
+        socketId: socket.id
       };
       if (!room.spectators) room.spectators = [];
       if (!room.spectators.some(s => s.id === playerId)) {
@@ -704,7 +734,8 @@ io.on('connection', (socket: Socket) => {
       name: username,
       connected: true,
       ready: false,
-      handshakeToken: token
+      handshakeToken: token,
+      socketId: socket.id
     };
 
     room.players.push(newPlayer);
@@ -989,8 +1020,14 @@ io.on('connection', (socket: Socket) => {
       return;
     }
 
+    if (room.players.length < 3) {
+      socket.emit('action_rejected', { error: 'Vote kick requires at least three players.' });
+      return;
+    }
+
     // Set up vote kick
-    const requiredVotes = Math.floor((room.players.length) / 2) + 1; // majority of all players (including target)
+    const eligibleVoters = Math.max(0, room.players.length - 1); // everyone except the target
+    const requiredVotes = Math.floor(eligibleVoters / 2) + 1;
     room.voteKick = {
       targetId: targetPlayerId,
       initiatorId: playerId,
@@ -1038,13 +1075,14 @@ io.on('connection', (socket: Socket) => {
     voteKick.votes[playerId] = !!payload.vote;
 
     const totalPlayersCount = room.players.length;
-    const requiredVotes = Math.floor(totalPlayersCount / 2) + 1;
+    const totalEligibleVoters = Math.max(0, totalPlayersCount - 1);
+    const requiredVotes = Math.floor(totalEligibleVoters / 2) + 1;
 
     // Tally votes
     const yesCount = Object.values(voteKick.votes).filter(v => v === true).length;
     const noCount = Object.values(voteKick.votes).filter(v => v === false).length;
-    const totalEligibleVoters = totalPlayersCount - 1; // everyone except target
     const currentVotesCount = Object.keys(voteKick.votes).length;
+    const remainingVotes = totalEligibleVoters - currentVotesCount;
 
     io.to(roomId).emit('vote_kick_updated', {
       targetPlayerId: voteKick.targetId,
@@ -1126,7 +1164,7 @@ io.on('connection', (socket: Socket) => {
           console.log(`Migrated host of room ${roomId} to player ${nextActiveHost.name}`);
         }
       }
-    } else if (noCount >= requiredVotes || currentVotesCount >= totalEligibleVoters) {
+    } else if (yesCount + remainingVotes < requiredVotes || currentVotesCount >= totalEligibleVoters) {
       // Vote failed — clear timeout and session
       const targetId = voteKick.targetId;
       if (voteKick.timeoutHandle) clearTimeout(voteKick.timeoutHandle);
@@ -1145,6 +1183,13 @@ io.on('connection', (socket: Socket) => {
     if (!room) return;
 
     const player = room.players.find(p => p.id === playerId);
+    const spectator = room.spectators?.find(p => p.id === playerId);
+    const session = player ?? spectator;
+
+    // A user can reconnect before an older transport has fully closed. Only
+    // the latest socket is allowed to mark that identity offline.
+    if (!session || session.socketId !== socket.id) return;
+
     if (player) {
       player.connected = false;
       io.to(roomId).emit('player_disconnected', { playerId });
@@ -1154,6 +1199,15 @@ io.on('connection', (socket: Socket) => {
       disconnectTimers[playerId] = setTimeout(() => {
         handlePermanentLeave(roomId, playerId);
       }, 30000); // 30-second grace window
+    } else if (spectator) {
+      spectator.connected = false;
+      disconnectTimers[playerId] = setTimeout(() => {
+        const freshRoom = rooms[roomId];
+        if (!freshRoom) return;
+        freshRoom.spectators = freshRoom.spectators?.filter(s => s.id !== playerId);
+        delete playerToRoom[playerId];
+        delete disconnectTimers[playerId];
+      }, 30000);
     }
   });
 
@@ -1573,6 +1627,25 @@ if (require.main === module) {
   httpServer.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
   });
+
+  const shutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`${signal} received; draining connections.`);
+
+    for (const timer of Object.values(disconnectTimers)) clearTimeout(timer);
+    io.disconnectSockets(true);
+
+    httpServer.close(async () => {
+      await prisma.$disconnect();
+      process.exit(0);
+    });
+
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 export { app, httpServer, io, rooms };

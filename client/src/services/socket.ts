@@ -13,11 +13,14 @@ export class SocketService {
   }
 
   public connect(serverUrl: string, onConnect: () => void, onDisconnect: () => void): Socket {
-    this.socket = io(serverUrl, {
+    this.socket = io(serverUrl || undefined, {
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 10_000,
+      randomizationFactor: 0.4,
+      timeout: 15_000
     });
 
     this.socket.on('connect', () => {
@@ -54,7 +57,9 @@ export class SocketService {
 
   public disconnect() {
     if (this.socket) {
+      this.socket.removeAllListeners();
       this.socket.disconnect();
+      this.socket = null;
     }
   }
 }

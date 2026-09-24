@@ -40,7 +40,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
     e.preventDefault();
     setAuthError('');
     if (!guestUsername.trim()) {
-      setAuthError('Please enter a nickname first!');
+      setAuthError('Enter a nickname to continue.');
       return;
     }
     try {
@@ -113,8 +113,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
 
   if (authTab === 'guest') {
     return (
-      <div className="landing-card" style={{ padding: '44px', maxWidth: '480px', width: '100%', textAlign: 'center' }}>
-        <div className="brand-logo-mark" style={{ width: '100px', height: '100px', borderRadius: '26px', margin: '0 auto 28px auto' }}>
+      <div className="landing-card auth-card auth-card--guest">
+        <div className="brand-logo-mark auth-logo">
           <Dice5 size={56} style={{ filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.3))' }} />
         </div>
 
@@ -139,7 +139,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             fontSize: '13px',
             fontWeight: 600,
             fontFamily: "'Manrope', sans-serif"
-          }}>
+          }} role="alert">
             {authError}
           </div>
         )}
@@ -152,6 +152,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             onChange={e => setGuestUsername(e.target.value)}
             maxLength={15}
             required
+            aria-label="Nickname"
+            autoComplete="nickname"
             className="brand-input"
             style={{ textAlign: 'center', fontSize: '17px', fontWeight: 600 }}
           />
@@ -171,43 +173,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
           </Button>
         </form>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '28px', fontSize: '12.5px' }}>
-          <span
+        <div className="auth-switcher">
+          <button
+            type="button"
             onClick={() => { onAuthTabChange('login'); setAuthError(''); }}
-            style={{ color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', transition: 'color 0.2s', fontFamily: "'Manrope', sans-serif", display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cloud)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted)'}
+            className="auth-text-action"
           >
             <KeyRound size={13} /> Sign In
-          </span>
+          </button>
           <span style={{ color: 'var(--muted)', opacity: 0.4 }}>|</span>
-          <span
+          <button
+            type="button"
             onClick={() => { onAuthTabChange('register'); setAuthError(''); }}
-            style={{ color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', transition: 'color 0.2s', fontFamily: "'Manrope', sans-serif", display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cloud)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted)'}
+            className="auth-text-action"
           >
             <UserPlus size={13} /> Create Account
-          </span>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="landing-card" style={{ padding: '40px', maxWidth: '440px', width: '100%' }}>
+    <div className="landing-card auth-card">
       <button
+        type="button"
         onClick={() => { onAuthTabChange('guest'); setAuthError(''); }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '6px',
-          background: 'none', border: 'none',
-          color: 'var(--muted)', cursor: 'pointer',
-          fontFamily: "'Manrope', sans-serif", fontSize: '13px',
-          marginBottom: '24px', padding: 0,
-          transition: 'color 0.2s'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cloud)'}
-        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted)'}
+        className="auth-back-button"
       >
         <ArrowLeft size={14} /> Back
       </button>
@@ -226,7 +218,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
           marginBottom: '16px',
           fontSize: '13px',
           fontFamily: "'Manrope', sans-serif"
-        }}>
+        }} role="alert">
           {authError}
         </div>
       )}
@@ -239,6 +231,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             value={loginInput}
             onChange={e => setLoginInput(e.target.value)}
             required
+            autoComplete="username"
+            aria-label="Username or email"
             className="brand-input"
           />
           <input
@@ -247,6 +241,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             value={loginPassword}
             onChange={e => setLoginPassword(e.target.value)}
             required
+            autoComplete="current-password"
+            aria-label="Password"
             className="brand-input"
           />
           <Button type="submit" variant="primary" style={{ padding: '14px', fontSize: '16px', marginTop: '4px' }}>Sign In</Button>
@@ -262,6 +258,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             onChange={e => setRegUsername(e.target.value)}
             maxLength={15}
             required
+            autoComplete="username"
+            aria-label="Username"
             className="brand-input"
           />
           <input
@@ -270,6 +268,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             value={regEmail}
             onChange={e => setRegEmail(e.target.value)}
             required
+            autoComplete="email"
+            aria-label="Email address"
             className="brand-input"
           />
           <input
@@ -278,6 +278,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
             value={regPassword}
             onChange={e => setRegPassword(e.target.value)}
             required
+            autoComplete="new-password"
+            minLength={8}
+            aria-label="Password"
             className="brand-input"
           />
           <Button type="submit" variant="primary" style={{ padding: '14px', fontSize: '16px', marginTop: '4px' }}>Create Account</Button>
@@ -288,16 +291,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
         {authTab === 'login' ? (
           <span>
             No account?{' '}
-            <span style={{ color: 'var(--violet)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => onAuthTabChange('register')}>
+            <button type="button" className="auth-inline-action" onClick={() => onAuthTabChange('register')}>
               Create one
-            </span>
+            </button>
           </span>
         ) : (
           <span>
             Already have an account?{' '}
-            <span style={{ color: 'var(--violet)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => onAuthTabChange('login')}>
+            <button type="button" className="auth-inline-action" onClick={() => onAuthTabChange('login')}>
               Sign in
-            </span>
+            </button>
           </span>
         )}
       </div>

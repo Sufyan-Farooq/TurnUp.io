@@ -71,7 +71,7 @@ export function useAuth(): UseAuthResult {
       setAuthError('Server connection failed.');
       return false;
     }
-  }, []);
+  }, [applySession]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     setAuthError('');
@@ -97,7 +97,7 @@ export function useAuth(): UseAuthResult {
       setAuthError('Server connection failed.');
       return false;
     }
-  }, []);
+  }, [applySession]);
 
   const guestLogin = useCallback(async (username: string) => {
     setAuthError('');
@@ -123,7 +123,7 @@ export function useAuth(): UseAuthResult {
       setAuthError('Server connection failed.');
       return false;
     }
-  }, []);
+  }, [applySession]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('turnup_token');

@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { SocketService } from '../services/socket';
 
-export const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+/**
+ * An empty URL intentionally means "this page's origin". That lets the
+ * development proxy, Docker nginx proxy, and a Kubernetes ingress expose the
+ * REST API and Socket.IO on one public address without baking a hostname into
+ * the JavaScript bundle.
+ */
+export const SERVER_URL = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
 
 export interface UseSocketResult {
   /** Raw socket.io-client instance once connected, else null. */
@@ -49,6 +55,7 @@ export function useSocket(token: string, userId: string | undefined, options: Us
   const [isConnected, setIsConnected] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const reportedConnectionErrorRef = useRef(false);
   const onSocketConnectRef = useRef(onSocketConnect);
   onSocketConnectRef.current = onSocketConnect;
 
@@ -63,6 +70,7 @@ export function useSocket(token: string, userId: string | undefined, options: Us
       SERVER_URL,
       () => {
         setIsConnected(true);
+        reportedConnectionErrorRef.current = false;
         onSocketConnectRef.current?.(s);
       },
       () => setIsConnected(false)
@@ -75,8 +83,16 @@ export function useSocket(token: string, userId: string | undefined, options: Us
       setActionError(data.error);
     });
 
+    s.on('connect_error', () => {
+      if (!reportedConnectionErrorRef.current) {
+        reportedConnectionErrorRef.current = true;
+        setActionError('Connection lost. Reconnecting automatically…');
+      }
+    });
+
     return () => {
       s.off('action_rejected');
+      s.off('connect_error');
       socketService.disconnect();
       socketRef.current = null;
     };

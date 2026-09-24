@@ -28,6 +28,7 @@ describe('Full room -> game flow (socket.io integration)', () => {
   let baseUrl: string;
   let hostClient: ClientSocket;
   let guestClient: ClientSocket;
+  let spectatorClient: ClientSocket;
 
   beforeAll((done) => {
     httpServer.listen(0, () => {
@@ -44,6 +45,7 @@ describe('Full room -> game flow (socket.io integration)', () => {
   afterEach(() => {
     hostClient?.disconnect();
     guestClient?.disconnect();
+    spectatorClient?.disconnect();
   });
 
   it('creates a room, joins, readies up, starts the game, and processes a valid move', async () => {
@@ -98,5 +100,66 @@ describe('Full room -> game flow (socket.io integration)', () => {
 
     expect(updatePayload.gameState).toBeDefined();
     expect(updatePayload.gameState.gameSpecificState.lastRoll).toBeGreaterThanOrEqual(1);
+  }, 15000);
+
+  it('restores a spectator session after its transport reconnects', async () => {
+    const hostToken = generateToken({ id: 'spectator-host', username: 'Host', role: 'USER' });
+    const guestToken = generateToken({ id: 'spectator-guest', username: 'Guest', role: 'USER' });
+    const spectatorToken = generateToken({ id: 'spectator-user', username: 'Watcher', role: 'USER' });
+
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Spectator Recovery',
+      token: hostToken,
+      gameType: 'SNAKES_LADDERS'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+    await emitWithAck(guestClient, 'toggle_ready');
+    await emitWithAck(hostClient, 'start_game', {});
+
+    spectatorClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await waitForEvent(spectatorClient, 'connect');
+    const joined: any = await emitWithAck(spectatorClient, 'join_room', {
+      roomId: created.roomId,
+      token: spectatorToken
+    });
+    expect(joined.success).toBe(true);
+    expect(joined.isSpectator).toBe(true);
+
+    spectatorClient.disconnect();
+    spectatorClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await waitForEvent(spectatorClient, 'connect');
+    const restored: any = await emitWithAck(spectatorClient, 'auth', {
+      roomId: created.roomId,
+      token: spectatorToken
+    });
+
+    expect(restored.success).toBe(true);
+    expect(restored.isSpectator).toBe(true);
+    expect(restored.gameState).toBeDefined();
+  }, 15000);
+
+  it('explains why vote kick is unavailable in a two-player room', async () => {
+    const hostToken = generateToken({ id: 'vote-host', username: 'Host', role: 'USER' });
+    const guestToken = generateToken({ id: 'vote-guest', username: 'Guest', role: 'USER' });
+
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Vote Validation',
+      token: hostToken,
+      gameType: 'UNO'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+
+    const rejectionPromise = waitForEvent<{ error: string }>(hostClient, 'action_rejected');
+    hostClient.emit('initiate_vote_kick', { targetPlayerId: 'vote-guest' });
+    const rejection = await rejectionPromise;
+    expect(rejection.error).toBe('Vote kick requires at least three players.');
   }, 15000);
 });

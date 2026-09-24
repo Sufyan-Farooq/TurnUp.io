@@ -12,6 +12,8 @@
 - [Repository Structure](#repository-structure)
 - [Setup and Installation](#setup-and-installation)
 - [Running the Project](#running-the-project)
+- [Container deployment](#container-deployment)
+- [Kubernetes deployment](#kubernetes-deployment)
 - [Database Schema](#database-schema)
 - [Environment Variables](#environment-variables)
 
@@ -118,7 +120,7 @@ TurnUp.io/
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
+- [Node.js](https://nodejs.org/) v20 or higher
 - [PostgreSQL](https://www.postgresql.org/) instance (local or remote)
 - npm (bundled with Node.js)
 
@@ -184,6 +186,45 @@ npm run dev:client
 ```
 
 Both commands can be run simultaneously in separate terminal windows.
+
+## Container deployment
+
+The repository includes production multi-stage images for the React client and
+Node server plus PostgreSQL orchestration. The client serves the application
+and reverse-proxies `/api` and `/socket.io` to the server, so browsers only
+need one public origin.
+
+```bash
+cp .env.example .env
+# Set a long, random JWT_SECRET in .env before starting.
+docker compose up --build
+```
+
+Open `http://localhost:8080`. The API is also published on port `3000` for
+local diagnostics. PostgreSQL data is retained in the `postgres-data` volume.
+
+## Kubernetes deployment
+
+[`deployment.yml`](./deployment.yml) contains PostgreSQL, server, client,
+Services, probes, resource bounds, persistent storage, and an nginx Ingress.
+Before applying it:
+
+1. Publish the client and server images and update both `image:` values.
+2. Replace `turnup.example.com` in the Ingress and `CORS_ORIGIN` ConfigMap.
+3. Create the required secret without committing credentials:
+
+```bash
+kubectl create namespace turnup --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n turnup create secret generic turnup-secrets \
+  --from-literal=postgres-password='replace-me' \
+  --from-literal=jwt-secret='replace-with-a-long-random-value' \
+  --from-literal=database-url='postgresql://turnup:replace-me@postgres:5432/turnup_db?schema=public'
+kubectl apply -f deployment.yml
+```
+
+The game server intentionally runs as one replica because active rooms are
+held in process memory. Horizontal scaling requires a shared room store and a
+Socket.IO adapter such as Redis first.
 
 ---
 
