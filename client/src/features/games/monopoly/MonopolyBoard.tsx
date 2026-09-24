@@ -5,6 +5,7 @@ import { PropertyDetailModal } from './PropertyDetailModal';
 import { AuctionOverlay } from './AuctionOverlay';
 import { DiceDisplay, useRollAnimation } from './DiceDisplay';
 import type { MonopolyGameState, MonopolyRoom } from './types';
+import './monopoly.css';
 
 export interface MonopolyBoardProps {
   gameState: MonopolyGameState;
@@ -107,25 +108,14 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         <AuctionOverlay gameState={gameState} room={room} currentUserId={currentUserId} onBid={onBid} onFold={onFold} />
 
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-          height: '100%',
-          padding: '30px',
-          boxSizing: 'border-box',
-          position: 'relative'
-        }}>
-          <h1 style={{ fontSize: '52px', color: '#ffb703', textShadow: '0 0 15px rgba(255, 183, 3, 0.45)', margin: '0 0 4px 0', letterSpacing: '6px', fontWeight: 900 }}>
-            Mr. Worldwide
-          </h1>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '15px', letterSpacing: '2px', marginBottom: '24px' }}>
-            MONOPOLY ARENA
+        <div className="monopoly-center-content">
+          <div className="monopoly-eyebrow">TurnUp property exchange</div>
+          <h1 className="monopoly-title">Mr. Worldwide</h1>
+          <div className={`monopoly-turn-status${isMyTurn ? ' is-mine' : ''}`} role="status" aria-live="polite">
+            {isMyTurn ? 'Your move' : `${activePlayerName} is making a move`}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', margin: '16px 0' }}>
+          <div className="monopoly-dice-stage">
             <DiceDisplay
               value={isRolling ? diceValues[0] : (lastRoll?.[0] || 3)}
               rolling={isRolling}
@@ -141,15 +131,15 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
           </div>
 
           {lastRoll && lastRoll[0] > 0 && (
-            <div style={{ fontSize: '20px', fontWeight: 'bold', margin: '8px 0 20px 0', color: '#fff' }}>
-              {lastRoll[0]} + {lastRoll[1]} = {lastRoll[0] + lastRoll[1]}
+            <div className="monopoly-roll-result" aria-live="polite">
+              {lastRoll[0]} + {lastRoll[1]} = <strong>{lastRoll[0] + lastRoll[1]}</strong>
               {lastRoll[0] === lastRoll[1] && (
-                <span style={{ color: 'var(--accent-gold)', marginLeft: '12px', fontSize: '15px' }}>(DOUBLES!)</span>
+                <span>Doubles</span>
               )}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', marginTop: '12px' }}>
+          <div className="monopoly-actions">
             {isMyTurn ? (
               <>
                 {(subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') && (
@@ -188,41 +178,21 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
                 )}
               </>
             ) : (
-              <div style={{ color: 'var(--text-secondary)', fontSize: '15px', fontStyle: 'italic' }}>
-                Waiting for <strong>{activePlayerName}</strong>...
+              <div className="monopoly-waiting">
+                Waiting for <strong>{activePlayerName}</strong>
               </div>
             )}
           </div>
 
           {recentLogs.length > 0 && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '8px',
-              marginTop: '32px',
-              textAlign: 'center',
-              maxHeight: '160px',
-              overflow: 'hidden',
-              width: '100%',
-              padding: '0 15px',
-              boxSizing: 'border-box'
-            }}>
+            <div className="monopoly-log" aria-live="polite" aria-label="Recent game activity">
+              <div className="monopoly-log-label">Latest activity</div>
               {recentLogs.slice(-4).map((log, lIdx, arr) => {
                 const isLatest = lIdx === arr.length - 1;
                 return (
                   <div
                     key={lIdx}
-                    style={{
-                      fontSize: isLatest ? '15.5px' : '13.5px',
-                      color: isLatest ? '#fff' : 'rgba(255, 255, 255, 0.45)',
-                      fontWeight: isLatest ? 'bold' : 'normal',
-                      textShadow: isLatest ? '0 1px 6px rgba(255,255,255,0.1)' : 'none',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: '100%'
-                    }}
+                    className={`monopoly-log-entry${isLatest ? ' is-latest' : ''}`}
                   >
                     {log}
                   </div>
@@ -392,6 +362,15 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
                 setSelectedSpaceIndex(idx);
               }
             }}
+            onKeyDown={(event) => {
+              if ((space.type === 'property' || space.type === 'railroad' || space.type === 'utility') && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                setSelectedSpaceIndex(idx);
+              }
+            }}
+            role={(space.type === 'property' || space.type === 'railroad' || space.type === 'utility') ? 'button' : undefined}
+            tabIndex={(space.type === 'property' || space.type === 'railroad' || space.type === 'utility') ? 0 : undefined}
+            aria-label={(space.type === 'property' || space.type === 'railroad' || space.type === 'utility') ? `View ${space.name} details${isOwned && ownerPlayer ? `, owned by ${ownerPlayer.name}` : ', unowned'}` : undefined}
           >
             <div style={{
               width: isLeftOrRight ? '74px' : '100%',
@@ -503,6 +482,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
               ...tokenProperties
             }}
             title={playerObj?.name}
+            role="img"
+            aria-label={`${playerObj?.name || 'Player'} token on ${MONOPOLY_BOARD[pos]?.name || `space ${pos}`}${pId === gameState.activePlayerId ? ', active player' : ''}`}
             onMouseEnter={() => setHoveredPlayerId(pId)}
             onMouseLeave={() => setHoveredPlayerId(null)}
           />

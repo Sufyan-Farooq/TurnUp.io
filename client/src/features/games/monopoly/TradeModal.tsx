@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Handshake, Rocket } from 'lucide-react';
 import { MONOPOLY_BOARD } from './boardData';
 import type { MonopolyGameState, MonopolyRoom, TradeSide } from './types';
+import './monopoly.css';
 
 export interface TradeModalProps {
   gameState: MonopolyGameState;
@@ -57,6 +58,45 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const activeTrade = gameState.gameSpecificState.activeTrade;
+  const isTradeParticipant = !!activeTrade && (activeTrade.proposerId === currentUserId || activeTrade.receiverId === currentUserId);
+  const dialogMode = activeTrade
+    ? isTradeParticipant ? 'active' : 'closed'
+    : targetPlayerId ? 'constructor' : 'closed';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const escapeActionRef = useRef(onCloseConstructor);
+  escapeActionRef.current = activeTrade ? onRejectTrade : onCloseConstructor;
+
+  useEffect(() => {
+    if (dialogMode === 'closed') return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+    focusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        escapeActionRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [dialogMode]);
 
   // --- Active trade: accept/reject/negotiating views take priority ---
   if (activeTrade) {
@@ -98,7 +138,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     };
 
     return (
-      <div style={{
+      <div ref={dialogRef} className="monopoly-trade-overlay" role="dialog" aria-modal="true" aria-label="Trade offer" style={{
         position: 'absolute',
         top: 0,
         left: 0,
@@ -113,7 +153,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
         padding: '24px',
         zIndex: 900
       }}>
-        <div className="glass-panel" style={{
+        <div className="glass-panel monopoly-trade-card" style={{
           width: '340px',
           padding: '22px',
           borderRadius: '12px',
@@ -224,7 +264,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   };
 
   return (
-    <div style={{
+    <div ref={dialogRef} className="monopoly-trade-overlay" role="dialog" aria-modal="true" aria-label={`Propose a trade with ${targetPlayer.name}`} style={{
       position: 'fixed',
       top: 0,
       left: 0,
@@ -237,7 +277,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       alignItems: 'center',
       zIndex: 9999
     }}>
-      <div className="glass-panel" style={{
+      <div className="glass-panel monopoly-trade-card monopoly-trade-builder" style={{
         width: '460px',
         padding: '24px',
         borderRadius: '16px',

@@ -51,61 +51,47 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
       && selectedCardIndices.some(isPlayableNow)
       && hand[selectedCardIndices[0]]?.value === hand[selectedCardIndices[1]]?.value;
 
-  // Selection is transient UI state — clear it whenever the turn/substate changes
-  // or the hand size changes (a card was played/drawn), mirroring the explicit
-  // `setSelectedCardIndices([])` calls the original App.tsx made after every
-  // DRAW_CARD / PLAY_CARD socket emit.
   useEffect(() => {
     setSelectedCardIndices([]);
   }, [gameState.activePlayerId, gameState.subState, hand.length]);
 
   return (
     <div className="uno-hand-wrap">
-      {/* Doubles Floating Action Overlay Bar */}
+      <div className="uno-hand-heading">
+        <div>
+          <span className="uno-hand-kicker">Your hand</span>
+          <strong>{hand.length} card{hand.length === 1 ? '' : 's'}</strong>
+        </div>
+        <span className="uno-hand-hint">
+          {isMyTurn ? (rules.cardDoubles ? 'Select one card, or pair matching values' : 'Choose a highlighted card') : 'Cards unlock on your turn'}
+        </span>
+      </div>
+
       {selectedCardIndices.length > 0 && (
-        <div className="glass-panel uno-selection-bar">
-          <span style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold' }}>
-            {selectedCardIndices.length} Card{selectedCardIndices.length > 1 ? 's' : ''} Selected
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="uno-selection-bar" role="status" aria-live="polite">
+          <span><strong>{selectedCardIndices.length}</strong> card{selectedCardIndices.length > 1 ? 's' : ''} selected</span>
+          <div className="uno-selection-actions">
             {selectedCardIndices.length === 1 && (
-              <button
-                className="btn-primary"
-                disabled={!selectedCardsCanPlay}
-                style={{ padding: '6px 16px', fontSize: '12px', borderRadius: '12px' }}
-                onClick={() => onPlayCard(selectedCardIndices[0])}
-              >
-                Play Single
+              <button type="button" className="uno-selection-play" disabled={!selectedCardsCanPlay} onClick={() => onPlayCard(selectedCardIndices[0])}>
+                Play card
               </button>
             )}
             {selectedCardIndices.length === 2 && (
-              <button
-                className="btn-primary"
-                disabled={!selectedCardsCanPlay}
-                style={{ padding: '6px 16px', fontSize: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-orange) 100%)', boxShadow: '0 0 10px rgba(255, 183, 3, 0.4)' }}
-                onClick={() => onPlayDoubles(selectedCardIndices)}
-              >
-                Play Double!
+              <button type="button" className="uno-selection-play" disabled={!selectedCardsCanPlay} onClick={() => onPlayDoubles(selectedCardIndices)}>
+                Play pair
               </button>
             )}
-            <button
-              className="btn-secondary"
-              style={{ padding: '6px 16px', fontSize: '12px', borderRadius: '12px' }}
-              onClick={() => setSelectedCardIndices([])}
-            >
-              Cancel
+            <button type="button" className="uno-selection-cancel" onClick={() => setSelectedCardIndices([])}>
+              Clear
             </button>
           </div>
         </div>
       )}
 
-      {/* Actual Hand of Cards */}
-      <div className="uno-hand-row">
+      <div className="uno-hand-row" role="group" aria-label="Your UNO cards">
         {hand.map((card, idx) => {
           const isDrawnCard = idx === hand.length - 1;
           const isSelected = selectedCardIndices.includes(idx);
-
-          // Validation for single card selection eligibility
           const playable = isPlayableNow(idx);
 
           const handleCardInteraction = () => {
@@ -143,52 +129,23 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
           };
 
           return (
-            <div
+            <button
+              type="button"
               key={idx}
-              className={`uno-card card-${card.color}`}
-              role="button"
+              className={`uno-card uno-hand-card card-${card.color} ${playable ? 'is-playable' : ''} ${isSelected ? 'is-selected' : ''} ${isPlayOrPass && isDrawnCard ? 'is-drawn' : ''} ${selectedCardIndices.length > 0 && !isSelected ? 'is-deemphasized' : ''}`}
               tabIndex={isMyTurn ? 0 : -1}
               aria-label={`${card.color} ${card.value}${playable ? ', playable' : ', not playable'}`}
               aria-pressed={isSelected}
-              style={{
-                borderWidth: (isPlayOrPass && isDrawnCard) ? '4px' : (playable || isSelected) ? '3.5px' : '2.5px',
-                borderColor: (isPlayOrPass && isDrawnCard) ? 'var(--accent-gold)' : isSelected ? 'var(--accent-gold)' : playable ? '#fff' : undefined,
-                boxShadow: (isPlayOrPass && isDrawnCard)
-                  ? '0 0 20px var(--accent-gold), 0 5px 15px rgba(0,0,0,0.3)'
-                  : isSelected
-                    ? '0 0 25px var(--accent-gold), 0 5px 15px rgba(0,0,0,0.4)'
-                    : playable
-                      ? '0 0 15px rgba(255, 255, 255, 0.4), 0 5px 15px rgba(0,0,0,0.3)'
-                      : undefined,
-                transform: isSelected
-                  ? 'translateY(-30px) scale(1.05)'
-                  : (isPlayOrPass && isDrawnCard) || playable
-                    ? 'translateY(-15px)'
-                    : undefined,
-                opacity: (selectedCardIndices.length > 0 && !isSelected) ? 0.6 : 1,
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
-              }}
               onClick={handleCardInteraction}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  handleCardInteraction();
-                }
-              }}
             >
               {isPlayOrPass && isDrawnCard && (
-                <div className="uno-drawn-badge">DRAWN</div>
+                <span className="uno-drawn-badge">drawn</span>
               )}
-              <div style={{ alignSelf: 'flex-start', fontSize: '14px' }}>
-                {card.value.toUpperCase()}
-              </div>
-              <div className="uno-card-center-symbol">
-                {getUnoCardSymbol(card.value)}
-              </div>
-              <div style={{ alignSelf: 'flex-end', fontSize: '14px', transform: 'rotate(180deg)' }}>
-                {card.value.toUpperCase()}
-              </div>
-            </div>
+              {playable && <span className="uno-playable-label">playable</span>}
+              <span className="uno-card-corner">{card.value.toUpperCase()}</span>
+              <span className="uno-card-center-symbol">{getUnoCardSymbol(card.value)}</span>
+              <span className="uno-card-corner uno-card-corner--bottom">{card.value.toUpperCase()}</span>
+            </button>
           );
         })}
       </div>

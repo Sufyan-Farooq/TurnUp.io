@@ -1,5 +1,5 @@
 import React from 'react';
-import { Ban } from 'lucide-react';
+import { Ban, CircleDot, WifiOff } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import type { Player } from './types';
 
@@ -11,6 +11,7 @@ export interface ActivePlayersPanelProps {
   positions?: Record<string, number>;
   /** Uno hands (own hand is an array, opponents' are redacted to a count). */
   hands?: Record<string, unknown[] | number>;
+  activePlayerId?: string;
   onKickPlayer: (targetPlayerId: string) => void;
 }
 
@@ -30,16 +31,21 @@ export const ActivePlayersPanel: React.FC<ActivePlayersPanelProps> = ({
   gameType,
   positions,
   hands,
+  activePlayerId,
   onKickPlayer,
 }) => (
-  <>
-    <div style={{ padding: '16px', borderBottom: '1px solid rgba(123,44,191,0.1)' }}>
-      <h3 style={{ margin: 0 }}>Active Players</h3>
+  <section className="players-panel" aria-labelledby="players-panel-title">
+    <div className="players-panel__header">
+      <div>
+        <h3 id="players-panel-title">At the table</h3>
+        <p>{players.length} player{players.length === 1 ? '' : 's'} in this match</p>
+      </div>
+      <span className="players-panel__count">{players.length}</span>
     </div>
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '180px' }}>
+    <div className="players-panel__list">
       {players.map((p, idx) => (
-        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div key={p.id} className={`players-panel__row ${p.id === activePlayerId ? 'is-active' : ''} ${!p.connected ? 'is-offline' : ''}`}>
+          <div className="players-panel__identity">
             <div
               className={`player-token ${p.color ? '' : `token-${idx}`}`}
               style={{
@@ -51,28 +57,30 @@ export const ActivePlayersPanel: React.FC<ActivePlayersPanelProps> = ({
                 boxShadow: p.color ? `0 0 5px ${p.color}` : undefined,
               }}
             />
-            <span style={{ textDecoration: !p.connected ? 'line-through' : 'none' }}>{p.name}</span>
+            <div className="players-panel__copy">
+              <strong>{p.name}{p.id === currentPlayerId ? ' (you)' : ''}</strong>
+              <span>
+                {!p.connected && <><WifiOff size={11} /> Reconnecting</>}
+                {p.connected && p.id === activePlayerId && <><CircleDot size={11} /> Taking a turn</>}
+                {p.connected && p.id !== activePlayerId && (
+                  <>
+                    {gameType === 'SNAKES_LADDERS' && `Tile ${positions?.[p.id] || 1}`}
+                    {gameType === 'LUDO' && 'Racing home'}
+                    {gameType === 'UNO' && `${getHandCount(hands?.[p.id])} cards`}
+                  </>
+                )}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {p.id !== currentPlayerId && (
-              <Button
-                variant="danger"
-                onClick={() => onKickPlayer(p.id)}
-                style={{ padding: '2px 6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Ban size={10} /> Kick
-              </Button>
-            )}
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {gameType === 'SNAKES_LADDERS' && `Tile ${positions?.[p.id] || 1}`}
-              {gameType === 'LUDO' && 'Home stretch'}
-              {gameType === 'UNO' && `${getHandCount(hands?.[p.id])} cards`}
-            </span>
-          </div>
+          {p.id !== currentPlayerId && (
+            <Button variant="ghost" className="players-panel__kick" onClick={() => onKickPlayer(p.id)} aria-label={`Start a vote to remove ${p.name}`} title={`Vote to remove ${p.name}`}>
+              <Ban size={14} />
+            </Button>
+          )}
         </div>
       ))}
     </div>
-  </>
+  </section>
 );
 
 export default ActivePlayersPanel;

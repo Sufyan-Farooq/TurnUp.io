@@ -1,4 +1,5 @@
 import React from 'react';
+import { Activity, Radio } from 'lucide-react';
 import { getLogStyles } from './gameLog';
 
 export interface GameLogPanelProps {
@@ -11,33 +12,32 @@ export interface GameLogPanelProps {
  * `MobileLogDrawer`.
  */
 export const GameLogPanel: React.FC<GameLogPanelProps> = ({ gameLog }) => (
-  <>
-    <div style={{ padding: '16px', borderTop: '1px solid rgba(123,44,191,0.1)', borderBottom: '1px solid rgba(123,44,191,0.1)' }}>
-      <h3 style={{ margin: 0 }}>Log</h3>
+  <section className="game-feed" aria-labelledby="game-feed-title" aria-live="polite">
+    <div className="game-feed__header">
+      <div>
+        <h3 id="game-feed-title"><Activity size={15} /> Match feed</h3>
+        <p>Live actions and turning points</p>
+      </div>
+      <Radio size={15} className="game-feed__live" aria-label="Live" />
     </div>
-    <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+    <div className="game-feed__list">
+      {gameLog.length === 0 && <div className="game-feed__empty">Actions will appear here once the match begins.</div>}
       {gameLog.map((log, index) => {
         const styles = getLogStyles(log);
+        const accent = styles.borderLeft.split('solid ')[1] || 'var(--accent-blue)';
         return (
           <div
             key={index}
-            style={{
-              padding: '8px 12px',
-              background: styles.background,
-              borderRadius: '6px',
-              borderLeft: styles.borderLeft,
-              fontSize: '12.5px',
-              color: 'var(--text-primary)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-              marginBottom: '4px',
-            }}
+            className="game-feed__event"
+            style={{ '--event-accent': accent, background: styles.background } as React.CSSProperties}
           >
+            <span className="game-feed__dot" aria-hidden="true" />
             {log}
           </div>
         );
       })}
     </div>
-  </>
+  </section>
 );
 
 export default GameLogPanel;

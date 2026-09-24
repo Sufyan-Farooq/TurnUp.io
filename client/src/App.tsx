@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
-import { MessageCircle, SlidersHorizontal, WifiOff, X } from 'lucide-react';
+import { MessageCircle, PanelRightOpen, WifiOff, X } from 'lucide-react';
 
 import { BoardWrapper } from './components/BoardWrapper';
 import { Button, useToast } from './components/ui';
@@ -123,7 +123,7 @@ export default function App() {
   const [heldState, setHeldState] = useState<GameState | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
-  const [isLobbySidebarOpen, setIsLobbySidebarOpen] = useState(false);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
@@ -141,8 +141,53 @@ export default function App() {
   const seededGameIdRef = useRef<string | null>(null);
   const pendingLogSeedRef = useRef<string | null>(null);
   const joinAttemptedRef = useRef<string | null>(null);
+  const rightSidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  const rightSidebarCloseRef = useRef<HTMLButtonElement>(null);
 
   const appendLog = useCallback((line: string) => setGameLog(prev => [...prev, line]), []);
+
+  const closeRightSidebar = useCallback((restoreFocus = true) => {
+    setIsRightSidebarOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => rightSidebarTriggerRef.current?.focus());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isRightSidebarOpen) return;
+
+    window.requestAnimationFrame(() => rightSidebarCloseRef.current?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeRightSidebar();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const panel = document.getElementById('desktop-sidebar');
+      const focusable = Array.from(
+        panel?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter(element => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!panel?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closeRightSidebar, isRightSidebarOpen]);
 
   const roomApi = useRoom(socket, socketService, currentUser, auth.token, {
     onGameStarted: () => {
@@ -468,12 +513,12 @@ export default function App() {
     if (!socket || room?.hostId !== playerId) return;
     socket.emit('start_game', {}, (res: { success: boolean; message?: string }) => {
       if (!res?.success) showToast(res?.message || 'Could not start the game.', 'error');
-      else setIsLobbySidebarOpen(false);
+      else setIsRightSidebarOpen(false);
     });
   };
 
   const handleLeaveGame = () => {
-    setIsLobbySidebarOpen(false);
+    setIsRightSidebarOpen(false);
     roomApi.leaveRoomSession();
     game.setGameState(null);
     seededGameIdRef.current = null;
@@ -735,14 +780,21 @@ export default function App() {
     const showAppearancePicker = inLobby && !roomApi.hasJoinedLobby;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'row', width: '100%', height: '100dvh', overflow: 'hidden', position: 'relative' }}>
+      <div className="game-shell" data-game={room.gameType}>
         {!isConnected && (
           <div className="connection-banner" role="status" aria-live="polite">
             <WifiOff size={15} /> Connection lost. Reconnecting…
           </div>
         )}
         <div className={`left-sidebar-overlay ${isLeftSidebarOpen ? 'active' : ''}`} onClick={() => setIsLeftSidebarOpen(false)} />
-        {inLobby && <div className={`lobby-sidebar-overlay ${isLobbySidebarOpen ? 'active' : ''}`} onClick={() => setIsLobbySidebarOpen(false)} />}
+        <button
+          type="button"
+          className={`game-sidebar-overlay ${isRightSidebarOpen ? 'active' : ''}`}
+          onClick={() => closeRightSidebar()}
+          aria-label="Close game panel"
+          aria-hidden={!isRightSidebarOpen}
+          tabIndex={isRightSidebarOpen ? 0 : -1}
+        />
 
         <LeftSidebar
           roomId={room.id}
@@ -761,16 +813,22 @@ export default function App() {
         <button className="chat-toggle-btn" onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} aria-label="Toggle chat">
           {isLeftSidebarOpen ? <X size={20} /> : <MessageCircle size={20} />}
         </button>
-        {inLobby && (
-          <button className="lobby-settings-toggle" onClick={() => setIsLobbySidebarOpen(true)} aria-label="Open lobby settings">
-            <SlidersHorizontal size={20} />
-          </button>
-        )}
+        <button
+          ref={rightSidebarTriggerRef}
+          type="button"
+          className="game-sidebar-toggle"
+          onClick={() => setIsRightSidebarOpen(true)}
+          aria-label={inLobby ? 'Open lobby settings and players' : 'Open players and game details'}
+          aria-controls="desktop-sidebar"
+          aria-expanded={isRightSidebarOpen}
+        >
+          <PanelRightOpen size={20} aria-hidden="true" />
+        </button>
 
         {/* Game area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', minWidth: 0 }}>
+        <main className="game-main">
           <div className="hud-bar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div className="hud-identity">
               <span className="hud-brand">
                 <span className="turn">turn</span>
                 <span className="up">Up</span>
@@ -778,9 +836,10 @@ export default function App() {
               <span className="hud-game-badge">{room.gameType.replace(/_/g, ' ')}</span>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="hud-actions">
               {!inLobby ? (
-                <span className={`hud-turn-pill ${isMyTurn ? 'my-turn' : 'other-turn'}`}>
+                <span className={`hud-turn-pill ${isMyTurn ? 'my-turn' : 'other-turn'}`} role="status" aria-live="polite">
+                  <span className="hud-turn-dot" aria-hidden="true" />
                   {isMyTurn ? 'Your Turn' : `${activePlayer?.name ?? 'Opponent'}'s Turn`}
                 </span>
               ) : (
@@ -793,30 +852,15 @@ export default function App() {
           </div>
 
           {/* Board */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <div className="game-board-stage">
             <div
-              style={{
-                filter: showAppearancePicker ? 'blur(6px) brightness(0.35)' : 'none',
-                transition: 'filter 0.3s ease',
-                width: '100%',
-                height: '100%',
-              }}
+              className={`game-board-content ${showAppearancePicker ? 'is-obscured' : ''}`}
             >
               {renderBoard()}
             </div>
 
             {showAppearancePicker && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: 100,
-                  background: 'rgba(0,0,0,0.3)',
-                }}
-              >
+              <div className="appearance-picker-layer">
                 <AppearancePicker
                   currentUserId={playerId}
                   players={room.players}
@@ -833,16 +877,7 @@ export default function App() {
 
           {/* Action zone (Monopoly keeps its controls inside the board's center panel) */}
           {!isMonopoly && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                padding: '16px',
-                background: 'var(--bg-secondary)',
-                borderTop: '1px solid rgba(123,44,191,0.2)',
-              }}
-            >
+            <div className="game-action-dock">
               {renderActionBar()}
 
               <button
@@ -855,12 +890,15 @@ export default function App() {
               </button>
             </div>
           )}
-        </div>
+        </main>
 
         {/* Right sidebar */}
         <div
           id="desktop-sidebar"
-          className={isLobbySidebarOpen ? 'open' : ''}
+          className={`game-sidebar ${isRightSidebarOpen ? 'open' : ''}`}
+          role={isRightSidebarOpen ? 'dialog' : 'complementary'}
+          aria-modal={isRightSidebarOpen ? 'true' : undefined}
+          aria-label={inLobby ? 'Lobby controls' : 'Game details'}
           style={{
             width: '320px',
             background: 'var(--bg-secondary)',
@@ -870,6 +908,21 @@ export default function App() {
             height: '100%',
           }}
         >
+          <div className="game-sidebar__mobile-header">
+            <div>
+              <strong>{inLobby ? 'Lobby controls' : isMonopoly ? 'Portfolio & trades' : 'Players & activity'}</strong>
+              <span>{room.gameType.replace(/_/g, ' ')}</span>
+            </div>
+            <button
+              ref={rightSidebarCloseRef}
+              type="button"
+              className="game-sidebar__close"
+              onClick={() => closeRightSidebar()}
+              aria-label="Close game panel"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </div>
           {inLobby ? (
             <WaitingRoomSidebar
               room={room}
@@ -880,7 +933,7 @@ export default function App() {
               onUpdateSettings={roomApi.updateLobbySettings}
               onKickPlayer={roomApi.initiateVoteKick}
               onStartGame={handleStartGame}
-              onClose={isLobbySidebarOpen ? () => setIsLobbySidebarOpen(false) : undefined}
+              onClose={isRightSidebarOpen ? () => closeRightSidebar() : undefined}
             />
           ) : isMonopoly ? (
             <MonopolySidebar
@@ -900,6 +953,7 @@ export default function App() {
               gameType={room.gameType}
               positions={gameStateForBoard.gameSpecificState?.positions}
               hands={gameStateForBoard.gameSpecificState?.hands}
+              activePlayerId={gameStateForBoard.activePlayerId}
               onKickPlayer={roomApi.initiateVoteKick}
             />
           )}
@@ -908,7 +962,14 @@ export default function App() {
         </div>
 
         {/* Overlays */}
-        <UnoColorPicker isOpen={showColorPicker} onSelectColor={handleSelectWildColor} />
+        <UnoColorPicker
+          isOpen={showColorPicker}
+          onSelectColor={handleSelectWildColor}
+          onCancel={() => {
+            setShowColorPicker(false);
+            setPendingWildCardIndices(null);
+          }}
+        />
 
         <MobileLogDrawer
           isOpen={isDrawerOpen}

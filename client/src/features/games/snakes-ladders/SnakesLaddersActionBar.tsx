@@ -7,6 +7,7 @@ export interface SnakesLaddersActionBarProps {
   isMyTurn: boolean;
   isRolling: boolean;
   currentDiceValue: number;
+  activePlayerName?: string;
   onRollDice: () => void;
 }
 
@@ -20,22 +21,30 @@ export const SnakesLaddersActionBar: React.FC<SnakesLaddersActionBarProps> = ({
   isMyTurn,
   isRolling,
   currentDiceValue,
+  activePlayerName,
   onRollDice
 }) => {
   return (
-    <div className="sl-action-bar">
-      <Dice3D value={currentDiceValue} isRolling={isRolling} onClick={isMyTurn ? onRollDice : undefined} />
+    <section className={`sl-action-bar ${isMyTurn ? 'is-your-turn' : ''}`} aria-live="polite">
+      <div className="sl-action-bar__dice">
+        <span className="sl-action-bar__eyebrow">{isRolling ? 'In motion' : 'Dice'}</span>
+        <Dice3D value={currentDiceValue} isRolling={isRolling} onClick={isMyTurn && !isRolling ? onRollDice : undefined} />
+      </div>
 
-      <div>
+      <div className="sl-action-bar__control">
         {isMyTurn ? (
-          <button onClick={onRollDice} disabled={isRolling} className="btn-primary" style={{ padding: '16px 36px', fontSize: '18px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-            {isRolling ? 'Rolling...' : (<>Roll Dice <Dice5 size={20} /></>)}
+          <button onClick={onRollDice} disabled={isRolling} className="btn-primary sl-action-bar__roll">
+            <span>{isRolling ? 'Rolling…' : 'Roll & race'}</span>
+            <Dice5 size={20} aria-hidden="true" />
           </button>
         ) : (
-          <div className="sl-action-bar__waiting">Waiting for active player to roll...</div>
+          <div className="sl-action-bar__waiting" role="status">
+            <span className="sl-action-bar__waiting-dot" aria-hidden="true" />
+            <span><strong>{activePlayerName ?? 'Active player'}</strong> is rolling</span>
+          </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 

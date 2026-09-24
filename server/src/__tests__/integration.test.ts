@@ -204,6 +204,34 @@ describe('Full room -> game flow (socket.io integration)', () => {
     expect(payload.gameState.gameSpecificState.cash['settings-host']).toBe(2500);
   }, 15000);
 
+  it('accepts the current Ludo palette and prevents duplicate seats', async () => {
+    const hostToken = generateToken({ id: 'ludo-color-host', username: 'LudoHost', role: 'USER' });
+    const guestToken = generateToken({ id: 'ludo-color-guest', username: 'LudoGuest', role: 'USER' });
+
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Ludo Palette', token: hostToken, gameType: 'LUDO'
+    });
+    expect(created.success).toBe(true);
+
+    const hostAppearance: any = await emitWithAck(hostClient, 'select_appearance', { color: '#ff5c66' });
+    expect(hostAppearance).toEqual(expect.objectContaining({ success: true }));
+
+    const joined: any = await emitWithAck(guestClient, 'join_room', {
+      roomId: created.roomId, token: guestToken
+    });
+    expect(joined.success).toBe(true);
+
+    const duplicateAppearance: any = await emitWithAck(guestClient, 'select_appearance', { color: '#FF5C66' });
+    expect(duplicateAppearance).toEqual(expect.objectContaining({ success: false }));
+
+    const guestAppearance: any = await emitWithAck(guestClient, 'select_appearance', { color: '#4E8CFF' });
+    expect(guestAppearance).toEqual(expect.objectContaining({ success: true }));
+  }, 15000);
+
   it('sends each UNO player a separately redacted state', async () => {
     const hostToken = generateToken({ id: 'uno-host', username: 'UnoHost', role: 'USER' });
     const guestToken = generateToken({ id: 'uno-guest', username: 'UnoGuest', role: 'USER' });

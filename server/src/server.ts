@@ -996,14 +996,19 @@ io.on('connection', (socket: Socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'LOBBY') return callback?.({ success: false, message: 'Appearance can only change in the lobby.' });
 
-    const color = payload?.color;
+    const requestedColor = payload?.color;
     const ludoColors = room.lobbySettings?.maxPlayers === 6
-      ? ['#d90429', '#fb8500', '#ffb703', '#38b000', '#00b4d8', '#7b2cbf']
-      : ['#d90429', '#38b000', '#ffb703', '#00b4d8'];
-    if (typeof color !== 'string' || (room.gameType === 'LUDO' ? !ludoColors.includes(color) : !/^#[0-9a-f]{6}$/i.test(color))) {
+      ? ['#FF5C66', '#4E8CFF', '#3FBF7F', '#FFC247', '#FB8500', '#6C3CE9']
+      : ['#FF5C66', '#4E8CFF', '#3FBF7F', '#FFC247'];
+    if (typeof requestedColor !== 'string' || (room.gameType === 'LUDO'
+      ? !ludoColors.some(candidate => candidate.toLowerCase() === requestedColor.toLowerCase())
+      : !/^#[0-9a-f]{6}$/i.test(requestedColor))) {
       return callback?.({ success: false, message: 'Invalid player color.' });
     }
-    if (room.gameType === 'LUDO' && room.players.some(p => p.id !== playerId && p.color === color)) {
+    const color = room.gameType === 'LUDO'
+      ? ludoColors.find(candidate => candidate.toLowerCase() === requestedColor.toLowerCase())!
+      : requestedColor;
+    if (room.gameType === 'LUDO' && room.players.some(p => p.id !== playerId && p.color?.toLowerCase() === color.toLowerCase())) {
       return callback?.({ success: false, message: 'That color is already taken.' });
     }
 

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Activity, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 
 export interface MobileLogDrawerProps {
@@ -18,34 +19,47 @@ export interface MobileLogDrawerProps {
  * the full game log in a slide-over panel on small screens.
  */
 export const MobileLogDrawer: React.FC<MobileLogDrawerProps> = ({ isOpen, onClose, gameLog, getLogStyles }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Do not leave controls from the off-canvas drawer in the tab order or
+  // accessibility tree while it is visually closed.
+  if (!isOpen) return null;
+
   return (
     <>
-      <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose} />
-      <div className={`sliding-drawer ${isOpen ? 'active' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid rgba(123,44,191,0.1)' }}>
-          <h3 style={{ margin: 0 }}>Game Info & Log</h3>
-          <Button variant="secondary" onClick={onClose} style={{ padding: '4px 10px', fontSize: '12px' }}>
-            Close
+      <div className="drawer-overlay active" onClick={onClose} aria-hidden="true" />
+      <div
+        className="sliding-drawer active"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Match feed"
+      >
+        <div className="mobile-feed__header">
+          <div><h3><Activity size={17} /> Match feed</h3><p>Every move, in order</p></div>
+          <Button variant="ghost" onClick={onClose} className="mobile-feed__close" aria-label="Close match feed">
+            <X size={18} />
           </Button>
         </div>
 
-        <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+        <div className="game-feed__list mobile-feed__list">
+          {gameLog.length === 0 && <div className="game-feed__empty">Actions will appear here once the match begins.</div>}
           {gameLog.map((log, index) => {
             const styles = getLogStyles(log);
+            const accent = styles.borderLeft.split('solid ')[1] || 'var(--accent-blue)';
             return (
               <div
                 key={index}
-                style={{
-                  padding: '8px 12px',
-                  background: styles.background,
-                  borderRadius: '6px',
-                  borderLeft: styles.borderLeft,
-                  fontSize: '12.5px',
-                  color: 'var(--text-primary)',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-                  marginBottom: '4px',
-                }}
+                className="game-feed__event"
+                style={{ '--event-accent': accent, background: styles.background } as React.CSSProperties}
               >
+                <span className="game-feed__dot" aria-hidden="true" />
                 {log}
               </div>
             );

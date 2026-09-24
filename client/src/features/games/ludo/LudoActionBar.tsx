@@ -32,37 +32,54 @@ export const LudoActionBar: React.FC<LudoActionBarProps> = ({
 }) => {
   if (isWaitingForTokenMove) {
     return (
-      <div className="ludo-action-bar">
-        <Dice3D value={currentDiceValue} isRolling={false} />
-        <div className="ludo-action-bar__prompt">
-          <span className="ludo-action-bar__prompt-text">
+      <section className={`ludo-action-bar ${isMyTurn ? 'is-your-turn' : ''}`} aria-live="polite">
+        <div className="ludo-action-bar__dice">
+          <span className="ludo-action-bar__eyebrow">Last roll</span>
+          <Dice3D value={currentDiceValue} isRolling={false} />
+        </div>
+        <div className="ludo-action-bar__prompt" role="status">
+          <span className="ludo-action-bar__step">2</span>
+          <span className="ludo-action-bar__prompt-copy">
+            <strong className="ludo-action-bar__prompt-title">
+              {isMyTurn ? 'Choose your move' : `${activePlayerName ?? 'The active player'} is choosing`}
+            </strong>
+            <span className="ludo-action-bar__prompt-text">
             {isMyTurn ? (
               <>
-                <Dice5 size={18} /> You rolled a {currentDiceValue}! Select one of your tokens on the board to move it.
+                You rolled {currentDiceValue}. Select a glowing token on the board.
               </>
             ) : (
-              `Waiting for ${activePlayerName ?? 'the active player'} to select a token (rolled ${currentDiceValue})...`
+              `They rolled ${currentDiceValue}. The turn continues when a token is moved.`
             )}
+            </span>
           </span>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="ludo-action-bar">
-      <Dice3D value={currentDiceValue} isRolling={isRolling} onClick={isMyTurn ? onRollDice : undefined} />
+    <section className={`ludo-action-bar ${isMyTurn ? 'is-your-turn' : ''}`} aria-live="polite">
+      <div className="ludo-action-bar__dice">
+        <span className="ludo-action-bar__eyebrow">{isRolling ? 'In motion' : 'Dice'}</span>
+        <Dice3D value={currentDiceValue} isRolling={isRolling} onClick={isMyTurn && !isRolling ? onRollDice : undefined} />
+      </div>
 
-      <div>
+      <div className="ludo-action-bar__control">
         {isMyTurn ? (
-          <button onClick={onRollDice} disabled={isRolling} className="btn-primary" style={{ padding: '16px 36px', fontSize: '18px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-            {isRolling ? 'Rolling...' : (<>Roll Dice <Dice5 size={20} /></>)}
+          <button onClick={onRollDice} disabled={isRolling} className="btn-primary ludo-action-bar__roll">
+            <span className="ludo-action-bar__step">1</span>
+            <span>{isRolling ? 'Rolling…' : 'Roll the dice'}</span>
+            <Dice5 size={20} aria-hidden="true" />
           </button>
         ) : (
-          <div className="ludo-action-bar__waiting">Waiting for active player to roll...</div>
+          <div className="ludo-action-bar__waiting" role="status">
+            <span className="ludo-action-bar__waiting-dot" aria-hidden="true" />
+            <span><strong>{activePlayerName ?? 'Active player'}</strong> is up next</span>
+          </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 

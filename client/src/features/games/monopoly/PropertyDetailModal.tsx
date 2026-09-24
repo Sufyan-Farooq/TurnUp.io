@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Home, Building2, Hammer, Landmark, Coins, Trash2 } from 'lucide-react';
 import { MONOPOLY_BOARD, colorGroupMap } from './boardData';
 import type { MonopolyGameState, MonopolyRoom } from './types';
+import './monopoly.css';
 
 export interface PropertyDetailModalProps {
   spaceIndex: number;
@@ -36,9 +37,45 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   onBuildHouse,
   onSellHouse
 }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const properties = gameState.gameSpecificState?.properties || {};
   const space = MONOPOLY_BOARD[spaceIndex];
   const prop = properties[spaceIndex];
+
+  useEffect(() => {
+    if (!space) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [spaceIndex, space]);
+
   if (!space) return null;
 
   const isSpaceOwned = !!(prop && prop.ownerId);
@@ -54,7 +91,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   const canUnmortgage = cashValue >= unmortgageCost;
 
   return (
-    <div style={{
+    <div className="monopoly-detail-overlay" style={{
       position: 'absolute',
       top: 0,
       left: 0,
@@ -69,8 +106,8 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
       borderRadius: '8px',
       padding: '16px',
       boxSizing: 'border-box'
-    }} role="dialog" aria-modal="true" aria-label={`${space.name} property details`}>
-      <div className="glass-panel" style={{
+    }} ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${space.name} property details`}>
+      <div className="glass-panel monopoly-detail-card" style={{
         width: '320px',
         background: 'rgba(30, 20, 50, 0.95)',
         border: `1.5px solid ${space.group ? headerColor : 'rgba(255,255,255,0.15)'}`,
@@ -92,6 +129,8 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
           flexShrink: 0
         }}>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
             aria-label="Close property details"
             style={{

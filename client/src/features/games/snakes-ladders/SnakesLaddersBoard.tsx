@@ -39,10 +39,8 @@ export const getSerpentineCoordinates = (cellNum: number) => {
 };
 
 /**
- * Snakes & Ladders board: 10x10 serpentine grid with animated SVG snake/ladder
- * overlays and player tokens. Extracted from App.tsx's `renderSnakesLaddersBoard`
- * with no behavior changes — only componentization, prop-driven data, and
- * wrapping in `BoardWrapper` internally (the caller no longer needs to wrap it).
+ * Snakes & Ladders board: 10x10 serpentine grid with SVG routes, board
+ * landmarks, and player tokens. Gameplay state remains entirely prop-driven.
  */
 export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameState, room }) => {
   // Helper to render realistic, detailed snake body
@@ -220,7 +218,7 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
     <BoardWrapper>
       <div className="sl-board-grid">
         {/* Visual Overlay SVG */}
-        <svg style={{ position: 'absolute', top: 0, left: 0, width: '1000px', height: '1000px', pointerEvents: 'none', zIndex: 5 }}>
+        <svg className="sl-board-routes" viewBox="0 0 1000 1000" aria-hidden="true">
           <defs>
             <linearGradient id="snake-grad-0" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#d90429" />
@@ -266,9 +264,23 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
             : (serpentineRow * 10 + (9 - c) + 1);
 
           const cellColorIndex = (r + c) % 4;
+          const ladderTop = Object.values(gameState.gameSpecificState.ladders || {}).includes(num);
+          const ladderBase = Object.prototype.hasOwnProperty.call(gameState.gameSpecificState.ladders || {}, num);
+          const snakeTail = Object.values(gameState.gameSpecificState.snakes || {}).includes(num);
+          const snakeHead = Object.prototype.hasOwnProperty.call(gameState.gameSpecificState.snakes || {}, num);
+          const markerClass = [
+            ladderBase && 'is-ladder-base',
+            ladderTop && 'is-ladder-top',
+            snakeHead && 'is-snake-head',
+            snakeTail && 'is-snake-tail',
+            num === 1 && 'is-start',
+            num === 100 && 'is-finish'
+          ].filter(Boolean).join(' ');
           return (
-            <div key={num} className={`sl-cell cell-color-${cellColorIndex}`}>
+            <div key={num} className={`sl-cell cell-color-${cellColorIndex} ${markerClass}`}>
               <span className="sl-cell-num">{num}</span>
+              {num === 1 && <span className="sl-cell-landmark">Start</span>}
+              {num === 100 && <span className="sl-cell-landmark">Finish</span>}
             </div>
           );
         })}
@@ -286,16 +298,21 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
           return (
             <div
               key={pId}
-              className={`player-token ${customColor ? '' : `token-${idx}`}`}
+              className={`player-token ${customColor ? '' : `token-${idx}`} ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
+              role="img"
+              aria-label={`${playerObj?.name ?? `Player ${idx + 1}`} on square ${pos}${pId === gameState.activePlayerId ? ', active player' : ''}`}
               style={{
-                left: `${x - 12 + xOffset}px`,
-                top: `${y - 12 + yOffset}px`,
+                left: `${x - 16 + xOffset}px`,
+                top: `${y - 16 + yOffset}px`,
                 zIndex: 10 + idx,
                 backgroundColor: customColor || undefined,
                 boxShadow: customColor ? `0 0 10px ${customColor}` : undefined
               }}
-              title={playerObj?.name}
-            />
+              title={`${playerObj?.name ?? `Player ${idx + 1}`} — square ${pos}`}
+            >
+              <span className="player-token__initial" aria-hidden="true">{playerObj?.name?.trim().charAt(0).toUpperCase() || idx + 1}</span>
+              {pId === gameState.activePlayerId && <span className="player-token__turn-flag" aria-hidden="true">Turn</span>}
+            </div>
           );
         })}
       </div>

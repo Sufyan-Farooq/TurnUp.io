@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, type LucideIcon } from 'lucide-react';
+import './monopoly.css';
 
 const DICE_ICONS: LucideIcon[] = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
 
@@ -16,6 +17,7 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
   const Icon = DICE_ICONS[clamped - 1];
   return (
     <div
+      className={`monopoly-die${rolling ? ' is-rolling' : ''}`}
       onClick={onClick}
       onKeyDown={(event) => {
         if (onClick && (event.key === 'Enter' || event.key === ' ')) {

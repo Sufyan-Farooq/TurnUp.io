@@ -205,10 +205,8 @@ export const isTokenMoveValid = (
 /**
  * Ludo board: base quadrants, cross-shaped track, home stretches/center, and
  * player tokens (click-to-move when it's your turn and a token move is
- * pending). Extracted from App.tsx's `renderLudoBoard` with no visual/behavior
- * changes — only componentization, prop-driven data, `PLAYER_COLORS`-backed
- * base-index resolution, no direct socket usage (moves go through
- * `onMoveToken`), and wrapping in `BoardWrapper` internally.
+ * pending). The board keeps socket/gameplay concerns outside this component;
+ * moves are sent through `onMoveToken` and validated by the server.
  *
  * NOTE: there is no safe-zone capture protection in the server ruleset
  * (server/src/engine/ludo.ts) — the `.path-safe` star markers are purely
@@ -222,6 +220,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
   const is6 = maxPlayers === 6;
   const trackLength = is6 ? 78 : 52;
   const isMyTurn = gameState.activePlayerId === currentUserId;
+  const activePlayerBaseIndex = getPlayerBaseIndex(room, gameState, gameState.activePlayerId);
 
   const ludoCells: React.ReactNode[] = [];
 
@@ -333,7 +332,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
         } : undefined}
       >
         {/* Bases */}
-        <div className="ludo-cell base-red" style={{ gridRow: '1/7', gridColumn: '1/7' }}>
+        <div className={`ludo-cell base-red ${activePlayerBaseIndex === 0 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '1/7' }}>
           <div className="base-inner">
             <div className="base-pocket" />
             <div className="base-pocket" />
@@ -343,7 +342,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
         </div>
         {is6 ? (
           <>
-            <div className="ludo-cell base-orange" style={{ gridRow: '1/7', gridColumn: '10/16' }}>
+            <div className={`ludo-cell base-orange ${activePlayerBaseIndex === 1 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '10/16' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -351,7 +350,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-yellow" style={{ gridRow: '1/7', gridColumn: '19/25' }}>
+            <div className={`ludo-cell base-yellow ${activePlayerBaseIndex === 2 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '19/25' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -359,7 +358,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-green" style={{ gridRow: '10/16', gridColumn: '19/25' }}>
+            <div className={`ludo-cell base-green ${activePlayerBaseIndex === 3 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '19/25' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -367,7 +366,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-blue" style={{ gridRow: '10/16', gridColumn: '10/16' }}>
+            <div className={`ludo-cell base-blue ${activePlayerBaseIndex === 4 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '10/16' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -375,7 +374,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-purple" style={{ gridRow: '10/16', gridColumn: '1/7' }}>
+            <div className={`ludo-cell base-purple ${activePlayerBaseIndex === 5 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '1/7' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -386,7 +385,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
           </>
         ) : (
           <>
-            <div className="ludo-cell base-green" style={{ gridRow: '1/7', gridColumn: '10/16' }}>
+            <div className={`ludo-cell base-green ${activePlayerBaseIndex === 1 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '10/16' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -394,7 +393,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-yellow" style={{ gridRow: '10/16', gridColumn: '10/16' }}>
+            <div className={`ludo-cell base-yellow ${activePlayerBaseIndex === 2 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '10/16' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -402,7 +401,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                 <div className="base-pocket" />
               </div>
             </div>
-            <div className="ludo-cell base-blue" style={{ gridRow: '10/16', gridColumn: '1/7' }}>
+            <div className={`ludo-cell base-blue ${activePlayerBaseIndex === 3 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '1/7' }}>
               <div className="base-inner">
                 <div className="base-pocket" />
                 <div className="base-pocket" />
@@ -503,10 +502,10 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
             return (
               <div
                 key={`${pId}-${tIdx}`}
-                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''}`}
-                role={isInteractive ? 'button' : undefined}
+                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${pId === currentUserId ? 'is-mine' : ''} ${pos === trackLength + 5 ? 'is-home' : ''}`}
+                role={isInteractive ? 'button' : 'img'}
                 tabIndex={isInteractive ? 0 : -1}
-                aria-label={`${playerObj.name}'s token ${tIdx + 1}${isInteractive ? ', move this token' : ''}`}
+                aria-label={`${playerObj.name}'s token ${tIdx + 1}${pos === -1 ? ' in base' : pos === trackLength + 5 ? ' at home' : ` on space ${pos + 1}`}${isInteractive ? ', move this token' : ''}`}
                 style={{
                   left: `${coords.x + ox}px`,
                   top: `${coords.y + oy}px`,
@@ -525,13 +524,14 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
                     onMoveToken(tIdx);
                   }
                 }}
-                title={`${playerObj?.name}'s Token ${tIdx + 1}`}
+                title={`${playerObj?.name}'s token ${tIdx + 1}${isInteractive ? ' — select to move' : ''}`}
               >
                 <svg viewBox="0 0 100 100" width="22" height="22" fill="currentColor" style={{ filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.35))' }}>
                   <circle cx="50" cy="25" r="16" />
                   <path d="M50 42c-12 0-20 8-20 20v6h40v-6c0-12-8-20-20-20z" />
                   <rect x="25" y="72" width="50" height="8" rx="4" />
                 </svg>
+                {isInteractive && <span className="ludo-token__move-indicator" aria-hidden="true">Move</span>}
               </div>
             );
           });

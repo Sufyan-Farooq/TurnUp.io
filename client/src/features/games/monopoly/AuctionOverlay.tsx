@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Gavel } from 'lucide-react';
-import { MONOPOLY_BOARD } from './boardData';
+import { MONOPOLY_BOARD, colorGroupMap } from './boardData';
 import type { MonopolyGameState, MonopolyRoom } from './types';
+import './monopoly.css';
 
 export interface AuctionOverlayProps {
   gameState: MonopolyGameState;
@@ -13,115 +14,90 @@ export interface AuctionOverlayProps {
 
 const BID_INCREMENT = 10;
 
-/**
- * Sequential bid/fold overlay shown while `subState === 'AUCTION'`.
- * Renders null when there's no active auction space.
- */
 export const AuctionOverlay: React.FC<AuctionOverlayProps> = ({ gameState, room, currentUserId, onBid, onFold }) => {
-  if (gameState.subState !== 'AUCTION') return null;
-
   const { auctionSpaceIndex, auctionCurrentBid = 0, auctionHighestBidderId, auctionBidders = [], auctionActiveBidderIndex = 0 } = gameState.gameSpecificState;
-
-  if (auctionSpaceIndex === undefined) return null;
-
-  const space = MONOPOLY_BOARD[auctionSpaceIndex];
   const activeBidderId = auctionBidders[auctionActiveBidderIndex];
   const isActiveBidderMe = activeBidderId === currentUserId;
+  const isOpen = gameState.subState === 'AUCTION' && auctionSpaceIndex !== undefined;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const foldRef = useRef(onFold);
+  foldRef.current = onFold;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+    const firstControl = focusable()[0];
+    if (firstControl) firstControl.focus();
+    else dialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isActiveBidderMe) {
+        event.preventDefault();
+        foldRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [isOpen, isActiveBidderMe]);
+
+  if (!isOpen || auctionSpaceIndex === undefined) return null;
+
+  const space = MONOPOLY_BOARD[auctionSpaceIndex];
   const nextBid = auctionCurrentBid + BID_INCREMENT;
   const availableCash = gameState.gameSpecificState.cash[currentUserId] ?? 0;
   const canAffordBid = availableCash >= nextBid;
-
-  const activeBidderName = room?.players?.find(p => p.id === activeBidderId)?.name || 'Unknown';
-  const highestBidderName = auctionHighestBidderId ? (room?.players?.find(p => p.id === auctionHighestBidderId)?.name || 'Unknown') : 'No bids yet';
-
-  const colorGroupHex = space.group === 'brown' ? '#955436' :
-    space.group === 'light-blue' ? '#aae0fa' :
-    space.group === 'magenta' ? '#d93b96' :
-    space.group === 'orange' ? '#f7941d' :
-    space.group === 'red' ? '#ed1c24' :
-    space.group === 'yellow' ? '#fef200' :
-    space.group === 'green' ? '#1fb25a' :
-    space.group === 'dark-blue' ? '#0072bc' : '#9aa0a6';
+  const activeBidderName = room?.players?.find(player => player.id === activeBidderId)?.name || 'Unknown player';
+  const highestBidderName = auctionHighestBidderId ? room?.players?.find(player => player.id === auctionHighestBidderId)?.name || 'Unknown player' : 'No bids yet';
+  const propertyColor = colorGroupMap[space.group || ''] || '#7b2cbf';
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(6,2,10,0.92)',
-      backdropFilter: 'blur(8px)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-      zIndex: 900
-    }}>
-      <div className="glass-panel" style={{
-        width: '320px',
-        padding: '20px',
-        borderRadius: '12px',
-        border: '1.5px solid var(--accent-purple)',
-        background: 'rgba(123,44,191,0.05)',
-        textAlign: 'center',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-      }}>
-        <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '1px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-          <Gavel size={13} /> Property Auction
-        </span>
-
-        <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ height: '14px', background: colorGroupHex }} />
-          <div style={{ padding: '12px' }}>
-            <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>{space.name}</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Valued at ${space.price}</span>
+    <div ref={dialogRef} className="monopoly-auction-overlay" role="dialog" aria-modal="true" aria-labelledby="monopoly-auction-title" tabIndex={-1}>
+      <section className="monopoly-auction-card" style={{ '--property-color': propertyColor } as React.CSSProperties}>
+        <header className="monopoly-auction-header">
+          <span className="monopoly-auction-label"><Gavel size={14} /> Live auction</span>
+          <span className="monopoly-auction-cash">Your cash · ${availableCash.toLocaleString()}</span>
+        </header>
+        <div className="monopoly-auction-property">
+          <div className="monopoly-auction-band" />
+          <div className="monopoly-auction-property-copy">
+            <h3 id="monopoly-auction-title">{space.name}</h3>
+            <p>Bank value ${space.price?.toLocaleString()}</p>
           </div>
         </div>
-
-        <div style={{ margin: '16px 0', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Highest Bid</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-green)', margin: '4px 0' }}>
-            ${auctionCurrentBid}
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            by <strong>{highestBidderName}</strong>
-          </div>
+        <div className="monopoly-auction-bid" aria-live="polite">
+          <span>Highest bid</span>
+          <strong>${auctionCurrentBid.toLocaleString()}</strong>
+          <p>{auctionHighestBidderId ? `Held by ${highestBidderName}` : highestBidderName}</p>
         </div>
-
-        <div style={{ margin: '14px 0', fontSize: '13px' }}>
-          {isActiveBidderMe ? (
-            <div style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>
-              Your Turn to Bid!
-            </div>
-          ) : (
-            <div style={{ color: 'var(--text-secondary)' }}>
-              Turn: <strong>{activeBidderName}</strong>
-            </div>
-          )}
+        <div className={`monopoly-auction-turn${isActiveBidderMe ? ' is-mine' : ''}`}>
+          {isActiveBidderMe ? 'Your decision' : `${activeBidderName} is deciding`}
         </div>
-
         {isActiveBidderMe ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-            <button
-              onClick={() => onBid(nextBid)}
-              disabled={!canAffordBid}
-              className="btn-primary"
-              style={{ padding: '10px', fontWeight: 'bold', fontSize: '13px', background: 'linear-gradient(135deg, var(--accent-gold) 0%, #e89b00 100%)', boxShadow: '0 4px 15px rgba(255,183,3,0.3)' }}
-            >
-              {canAffordBid ? `Bid $${nextBid}` : `Need $${nextBid} to bid`}
+          <div className="monopoly-auction-actions">
+            <button type="button" onClick={() => onBid(nextBid)} disabled={!canAffordBid} className="btn-primary">
+              {canAffordBid ? `Bid $${nextBid}` : `Need $${nextBid}`}
             </button>
-            <button onClick={onFold} className="btn-secondary" style={{ padding: '8px', fontSize: '12px' }}>
-              Fold / Pass
-            </button>
+            <button type="button" onClick={onFold} className="btn-secondary">Fold</button>
           </div>
-        ) : (
-          <div style={{ marginTop: '16px', color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>
-            Waiting for bids...
-          </div>
-        )}
-      </div>
+        ) : <div className="monopoly-auction-wait">Waiting for the next bid…</div>}
+      </section>
     </div>
   );
 };
