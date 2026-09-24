@@ -200,8 +200,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open `http://localhost:8080`. The API is also published on port `3000` for
-local diagnostics. PostgreSQL data is retained in the `postgres-data` volume.
+Open `http://localhost:8080`. REST and WebSocket traffic are served through
+that same origin; the server port remains private to the Compose network.
+PostgreSQL data is retained in the `postgres-data` volume.
 
 ## Kubernetes deployment
 
