@@ -109,7 +109,6 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
         <AuctionOverlay gameState={gameState} room={room} currentUserId={currentUserId} onBid={onBid} onFold={onFold} />
 
         <div className="monopoly-center-content">
-          <div className="monopoly-eyebrow">TurnUp property exchange</div>
           <h1 className="monopoly-title">Mr. Worldwide</h1>
           <div className={`monopoly-turn-status${isMyTurn ? ' is-mine' : ''}`} role="status" aria-live="polite">
             {isMyTurn ? 'Your move' : `${activePlayerName} is making a move`}

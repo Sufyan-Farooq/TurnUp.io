@@ -39,15 +39,6 @@
   box-sizing: border-box;
 }
 
-.monopoly-eyebrow {
-  margin-bottom: 0.55rem;
-  color: #bcff44;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-
 .monopoly-title {
   max-width: 12ch;
   margin: 0;
@@ -125,11 +116,14 @@
 .monopoly-action-controls button:focus-visible { outline: 3px solid #bcff44; outline-offset: 3px; }
 
 .monopoly-log {
-  width: min(100%, 34rem);
-  margin-top: clamp(1.3rem, 4vh, 2.5rem);
+  position: absolute;
+  bottom: clamp(1.25rem, 3vh, 2rem);
+  left: 50%;
+  width: min(calc(100% - 4rem), 34rem);
   padding-top: 1rem;
   border-top: 1px solid rgba(255,255,255,.07);
   text-align: left;
+  transform: translateX(-50%);
 }
 .monopoly-log-label { margin-bottom: .55rem; color: rgba(255,255,255,.34); font-size: .65rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
 .monopoly-log-entry { overflow: hidden; color: rgba(255,255,255,.38); font-size: .76rem; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
