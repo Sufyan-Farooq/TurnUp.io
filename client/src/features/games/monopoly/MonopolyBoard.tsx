@@ -62,7 +62,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 }) => {
   const [selectedSpaceIndex, setSelectedSpaceIndex] = useState<number | null>(null);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
-  const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice);
+  const lastRoll = gameState.gameSpecificState?.lastRoll;
+  const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice, gameState.historyLength ?? 0, lastRoll);
 
   const properties = gameState.gameSpecificState?.properties || {};
   const positions = gameState.gameSpecificState?.positions || {};
@@ -70,7 +71,6 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   const subState = gameState.subState;
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const cashValue = gameState.gameSpecificState?.cash?.[currentUserId] || 0;
-  const lastRoll = gameState.gameSpecificState?.lastRoll;
   const currentSpace = MONOPOLY_BOARD[positions[currentUserId]];
   const canBuyCurrentSpace = !!currentSpace?.price && cashValue >= currentSpace.price;
 
@@ -119,17 +119,17 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
               value={isRolling ? diceValues[0] : (lastRoll?.[0] || 3)}
               rolling={isRolling}
               size={120}
-              onClick={isMyTurn && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
+              onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
             />
             <DiceDisplay
               value={isRolling ? diceValues[1] : (lastRoll?.[1] || 4)}
               rolling={isRolling}
               size={120}
-              onClick={isMyTurn && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
+              onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
             />
           </div>
 
-          {lastRoll && lastRoll[0] > 0 && (
+          {!isRolling && lastRoll && lastRoll[0] > 0 && (
             <div className="monopoly-roll-result" aria-live="polite">
               {lastRoll[0]} + {lastRoll[1]} = <strong>{lastRoll[0] + lastRoll[1]}</strong>
               {lastRoll[0] === lastRoll[1] && (

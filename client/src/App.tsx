@@ -51,7 +51,7 @@ import { TradeModal } from './features/games/monopoly/TradeModal';
 import type { MonopolyGameState, MonopolyRoom, TradeSide } from './features/games/monopoly/types';
 import type { GameRoom } from './features/games/types';
 
-const randomDie = () => Math.floor(Math.random() * 6) + 1;
+const DICE_ROLL_MIN_MS = 720;
 
 /** Placeholder state used to render a (blurred) board while still in the lobby. */
 const makeLobbyPlaceholderState = (roomId: string, gameType: string, players: Player[]): GameState =>
@@ -137,7 +137,9 @@ export default function App() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const lastActivePlayerIdRef = useRef<string | null>(null);
   const prevGameStateRef = useRef<GameState | null>(null);
-  const rollTimersRef = useRef<{ interval?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> }>({});
+  const rollTimersRef = useRef<{ timeout?: ReturnType<typeof setTimeout> }>({});
+  const rollStartedAtRef = useRef(0);
+  const rollInFlightRef = useRef(false);
   const seededGameIdRef = useRef<string | null>(null);
   const pendingLogSeedRef = useRef<string | null>(null);
   const joinAttemptedRef = useRef<string | null>(null);
@@ -376,18 +378,20 @@ export default function App() {
     };
 
     const rollEvent = update.events.find(e => e.type === 'DICE_ROLLED');
-    if (rollEvent && rollEvent.playerId !== playerId) {
-      // Hold the board on its previous state while the dice spin, exactly as
-      // the original deferred `applyState()` did.
+    if (rollEvent && (update.gameState.gameType === 'LUDO' || update.gameState.gameType === 'SNAKES_LADDERS')) {
+      if (rollTimersRef.current.timeout) clearTimeout(rollTimersRef.current.timeout);
+      const isLocalRoll = rollEvent.playerId === playerId;
+      const elapsed = isLocalRoll ? Date.now() - rollStartedAtRef.current : 0;
+      const remaining = Math.max(0, DICE_ROLL_MIN_MS - elapsed);
+      // Preserve the previous board until the authoritative roll is ready to
+      // land, so a move prompt cannot appear ahead of the die's result.
       setHeldState(prevGameStateRef.current);
       setIsRolling(true);
-      const interval = setInterval(() => setCurrentDiceValue(randomDie()), 70);
-      rollTimersRef.current.interval = interval;
       rollTimersRef.current.timeout = setTimeout(() => {
-        clearInterval(interval);
+        rollInFlightRef.current = false;
         setIsRolling(false);
         applyBatch();
-      }, 800);
+      }, remaining);
       return;
     }
 
@@ -400,7 +404,6 @@ export default function App() {
 
   useEffect(
     () => () => {
-      if (rollTimersRef.current.interval) clearInterval(rollTimersRef.current.interval);
       if (rollTimersRef.current.timeout) clearTimeout(rollTimersRef.current.timeout);
     },
     []
@@ -544,15 +547,17 @@ export default function App() {
   };
 
   const handleRollDice = () => {
-    if (!socket || isRolling || !game.gameState) return;
+    if (!socket || rollInFlightRef.current || isRolling || !game.gameState) return;
+    rollInFlightRef.current = true;
+    rollStartedAtRef.current = Date.now();
     setIsRolling(true);
-    const interval = setInterval(() => setCurrentDiceValue(randomDie()), 70);
-    rollTimersRef.current.interval = interval;
+    // Send now: the server chooses the result while the die is in motion.
+    game.sendGameAction('ROLL_DICE');
+    // Recover the control if the request fails or a roll event never arrives.
     rollTimersRef.current.timeout = setTimeout(() => {
-      clearInterval(interval);
+      rollInFlightRef.current = false;
       setIsRolling(false);
-      game.sendGameAction('ROLL_DICE');
-    }, 800);
+    }, 5000);
   };
 
   // Uno: the parent owns wild-card orchestration (UnoHand/UnoActionBar never

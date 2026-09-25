@@ -20,8 +20,8 @@ export const MonopolyActionBar: React.FC<MonopolyActionBarProps> = ({
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const cashValue = gameState.gameSpecificState.cash[currentUserId] || 0;
   const subState = gameState.subState;
-  const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice);
   const lastRoll = gameState.gameSpecificState.lastRoll;
+  const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice, gameState.historyLength ?? 0, lastRoll);
 
   return (
     <section className="monopoly-action-bar" aria-label="Turn actions">
@@ -34,8 +34,8 @@ export const MonopolyActionBar: React.FC<MonopolyActionBarProps> = ({
       <div className="monopoly-action-controls">
         {(subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') && (
           <div className="monopoly-action-dice" aria-label="Current dice">
-            <DiceDisplay value={isRolling ? diceValues[0] : (lastRoll?.[0] || 1)} rolling={isRolling} onClick={isMyTurn ? triggerRoll : undefined} />
-            <DiceDisplay value={isRolling ? diceValues[1] : (lastRoll?.[1] || 1)} rolling={isRolling} onClick={isMyTurn ? triggerRoll : undefined} />
+            <DiceDisplay value={isRolling ? diceValues[0] : (lastRoll?.[0] || 1)} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
+            <DiceDisplay value={isRolling ? diceValues[1] : (lastRoll?.[1] || 1)} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
           </div>
         )}
         {isMyTurn ? <>

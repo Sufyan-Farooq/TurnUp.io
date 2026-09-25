@@ -35,7 +35,7 @@ export const LudoActionBar: React.FC<LudoActionBarProps> = ({
       <section className={`ludo-action-bar ${isMyTurn ? 'is-your-turn' : ''}`} aria-live="polite">
         <div className="ludo-action-bar__dice">
           <span className="ludo-action-bar__eyebrow">Last roll</span>
-          <Dice3D value={currentDiceValue} isRolling={false} />
+          <Dice3D value={currentDiceValue} isRolling={isRolling} />
         </div>
         <div className="ludo-action-bar__prompt" role="status">
           <span className="ludo-action-bar__step">2</span>

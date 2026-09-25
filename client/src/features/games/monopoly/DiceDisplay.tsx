@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, type LucideIcon } from 'lucide-react';
 import './monopoly.css';
 
@@ -15,8 +15,46 @@ export interface DiceDisplayProps {
 export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, rolling = false, onClick }) => {
   const clamped = Math.min(6, Math.max(1, value || 1));
   const Icon = DICE_ICONS[clamped - 1];
+  const dieRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef<Animation | null>(null);
+  const wasRollingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const die = dieRef.current;
+    if (!die) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rolling && !wasRollingRef.current) {
+      motionRef.current?.cancel();
+      die.style.rotate = 'none';
+      if (!reduceMotion) {
+        motionRef.current = die.animate(
+          [{ rotate: '-9deg' }, { rotate: '9deg' }],
+          { duration: 390, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }
+        );
+      }
+    } else if (!rolling && wasRollingRef.current) {
+      const angle = getComputedStyle(die).rotate;
+      motionRef.current?.cancel();
+      die.style.rotate = angle;
+      if (reduceMotion) {
+        die.style.rotate = 'none';
+      } else {
+        const settle = die.animate([{ rotate: angle }, { rotate: 'none' }],
+          { duration: 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+        motionRef.current = settle;
+        settle.onfinish = () => {
+          die.style.rotate = 'none';
+          motionRef.current = null;
+        };
+      }
+    }
+    wasRollingRef.current = rolling;
+  }, [rolling]);
+
+  useEffect(() => () => motionRef.current?.cancel(), []);
   return (
     <div
+      ref={dieRef}
       className={`monopoly-die${rolling ? ' is-rolling' : ''}`}
       onClick={onClick}
       onKeyDown={(event) => {
@@ -27,7 +65,7 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
       }}
       role={onClick ? 'button' : 'img'}
       tabIndex={onClick ? 0 : -1}
-      aria-label={onClick ? `Roll dice, currently showing ${clamped}` : `Dice showing ${clamped}`}
+      aria-label={rolling ? 'Dice rolling' : onClick ? `Roll dice, currently showing ${clamped}` : `Dice showing ${clamped}`}
       style={{
         width: size,
         height: size,
@@ -40,56 +78,70 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
         boxShadow: rolling ? '0 0 20px var(--accent-gold)' : '0 4px 12px rgba(0,0,0,0.35)',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.15s ease',
-        transform: rolling ? 'rotate(8deg)' : 'none'
+        transform: 'none'
       }}
     >
-      <Icon size={size * 0.7} strokeWidth={1.75} />
+      <Icon key={clamped} size={size * 0.7} strokeWidth={1.75} />
     </div>
   );
 };
 
 /**
- * Drives the ~800ms "shuffling dice" animation locally (matching the original
- * App.tsx handleRollDice behavior) before invoking the actual onRollDice action
- * callback. Kept local so MonopolyBoard/MonopolyActionBar don't need extra
- * roll-animation props beyond the plain `onRollDice()` handler.
+ * The server rolls immediately. The dice keep moving until its updated state
+ * arrives, then reveal that result after a minimum readable roll duration.
  */
-export function useRollAnimation(onRollDice: () => void, durationMs = 800, intervalMs = 70) {
+export function useRollAnimation(
+  onRollDice: () => void,
+  revision: number,
+  finalRoll: [number, number] | undefined,
+  durationMs = 720
+) {
   const [isRolling, setIsRolling] = useState(false);
-  const [diceValues, setDiceValues] = useState<[number, number]>([3, 4]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [diceValues, setDiceValues] = useState<[number, number]>(finalRoll?.[0] ? finalRoll : [3, 4]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rollingRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const startedRevisionRef = useRef(revision);
   const onRollDiceRef = useRef(onRollDice);
+  const finalDie1 = finalRoll?.[0];
+  const finalDie2 = finalRoll?.[1];
 
   useEffect(() => {
     onRollDiceRef.current = onRollDice;
   }, [onRollDice]);
 
   useEffect(() => () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     rollingRef.current = false;
   }, []);
+
+  useEffect(() => {
+    if (!rollingRef.current || revision <= startedRevisionRef.current || !finalDie1 || !finalDie2) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    const remaining = Math.max(0, durationMs - (Date.now() - startedAtRef.current));
+    timeoutRef.current = setTimeout(() => {
+      setDiceValues([finalDie1, finalDie2]);
+      setIsRolling(false);
+      rollingRef.current = false;
+      timeoutRef.current = null;
+    }, remaining);
+  }, [revision, finalDie1, finalDie2, durationMs]);
 
   const triggerRoll = useCallback(() => {
     // A ref closes the same-render double-click window before React commits.
     if (rollingRef.current) return;
     rollingRef.current = true;
+    startedAtRef.current = Date.now();
+    startedRevisionRef.current = revision;
     setIsRolling(true);
-    intervalRef.current = setInterval(() => {
-      setDiceValues([Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1]);
-    }, intervalMs);
-
+    onRollDiceRef.current();
+    // A failed or lost roll must not leave the control permanently disabled.
     timeoutRef.current = setTimeout(() => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = null;
       timeoutRef.current = null;
       rollingRef.current = false;
       setIsRolling(false);
-      onRollDiceRef.current();
-    }, durationMs);
-  }, [durationMs, intervalMs]);
+    }, 5000);
+  }, [revision]);
 
   return { isRolling, diceValues, triggerRoll };
 }

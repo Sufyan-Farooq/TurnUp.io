@@ -298,7 +298,7 @@ body {
   position: relative;
   transform-style: preserve-3d;
   transform: rotateX(-15deg) rotateY(45deg);
-  transition: transform 0.8s ease-out;
+  transition: none;
   cursor: pointer;
 }
 
@@ -321,11 +321,7 @@ body {
 .face-5 { transform: rotateX(90deg) translateZ(30px); }
 .face-6 { transform: rotateX(-90deg) translateZ(30px); }
 
-@keyframes roll-anim {
-  0%   { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-  100% { transform: rotateX(720deg) rotateY(1080deg) rotateZ(360deg); }
-}
-.dice-rolling { animation: roll-anim 0.8s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.dice-rolling { cursor: default; }
 
 /* ================================================
    LUDO BOARD

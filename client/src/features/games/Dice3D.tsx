@@ -1,15 +1,12 @@
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 
 /**
  * Shared 3D dice component extracted from App.tsx (was previously defined
  * inline near the top of that file). Used by Snakes & Ladders, Ludo, and
  * (potentially) Monopoly/Uno action bars.
  *
- * Behavior/visuals are preserved 1:1 from the original inline implementation:
- * - `renderDiceDots` draws a 3x3 dot grid per die value.
- * - `getDiceTransform` orients the cube face-up for the resting value.
- * - The `.dice-rolling` CSS class (defined globally in index.css) drives the
- *   roll animation while `isRolling` is true.
+ * The spin runs until an authoritative roll arrives. On completion we capture
+ * its exact on-screen orientation and ease into the final face without a snap.
  */
 
 export interface Dice3DProps {
@@ -79,13 +76,61 @@ export const getDiceTransform = (val: number) => {
 
 export const Dice3D: React.FC<Dice3DProps> = ({ value, isRolling, onClick, size = 60 }) => {
   const half = size / 2;
-  const style: React.CSSProperties = isRolling ? {} : {
-    transform: getDiceTransform(value)
-  };
+  const dieRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef<Animation | null>(null);
+  const wasRollingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const die = dieRef.current;
+    if (!die) return;
+    const target = getDiceTransform(value);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (isRolling && !wasRollingRef.current) {
+      motionRef.current?.cancel();
+      die.style.transform = target;
+      die.style.rotate = 'none';
+      if (!reduceMotion) {
+        motionRef.current = die.animate([
+          { rotate: '1 1 0 0deg' },
+          { rotate: '1 1 0 720deg' }
+        ], { duration: 820, iterations: Infinity, easing: 'linear' });
+      }
+    } else if (!isRolling && wasRollingRef.current) {
+      const orientation = getComputedStyle(die);
+      const currentTransform = orientation.transform;
+      const currentRotate = orientation.rotate;
+      motionRef.current?.cancel();
+      die.style.transform = currentTransform;
+      die.style.rotate = currentRotate;
+      if (reduceMotion) {
+        die.style.transform = target;
+        die.style.rotate = 'none';
+      } else {
+        const settle = die.animate([
+          { transform: currentTransform, rotate: currentRotate },
+          { transform: target, rotate: 'none' }
+        ], { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+        motionRef.current = settle;
+        settle.onfinish = () => {
+          die.style.transform = target;
+          die.style.rotate = 'none';
+          motionRef.current = null;
+        };
+      }
+    } else if (!isRolling && !motionRef.current) {
+      die.style.transform = target;
+      die.style.rotate = 'none';
+    }
+    wasRollingRef.current = isRolling;
+  }, [isRolling, value]);
+
+  useEffect(() => () => motionRef.current?.cancel(), []);
 
   return (
     <div className="dice-container" style={{ margin: `${size * 0.15}px`, perspective: `${size * 10}px` }}>
       <div
+        ref={dieRef}
         className={`dice-3d ${isRolling ? 'dice-rolling' : ''}`}
         onClick={onClick}
         onKeyDown={(event) => {
@@ -96,9 +141,8 @@ export const Dice3D: React.FC<Dice3DProps> = ({ value, isRolling, onClick, size 
         }}
         role={onClick ? 'button' : 'img'}
         tabIndex={onClick ? 0 : -1}
-        aria-label={onClick ? `Roll dice, currently showing ${value}` : `Dice showing ${value}`}
+        aria-label={isRolling ? 'Dice rolling' : onClick ? `Roll dice, currently showing ${value}` : `Dice showing ${value}`}
         style={{
-          ...style,
           width: `${size}px`,
           height: `${size}px`
         }}
