@@ -1,5 +1,6 @@
 import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent } from './interfaces';
 import { createRngFromState } from './rng';
+import { getLudoSeatColors } from './ludoPalette';
 
 export interface LudoState extends GameState {
   gameSpecificState: {
@@ -366,12 +367,10 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
     const color = player?.color;
     
     const maxPlayers = state.gameSpecificState.maxPlayers || 4;
-    const colors = maxPlayers === 6
-      ? ['#d90429', '#fb8500', '#ffb703', '#38b000', '#00b4d8', '#7b2cbf']
-      : ['#d90429', '#38b000', '#ffb703', '#00b4d8'];
+    const colors = getLudoSeatColors(maxPlayers);
       
     if (color) {
-      const idx = colors.indexOf(color);
+      const idx = colors.findIndex(candidate => candidate.toLowerCase() === color.toLowerCase());
       if (idx !== -1) return idx;
     }
     

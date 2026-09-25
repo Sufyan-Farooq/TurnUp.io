@@ -2,6 +2,8 @@ import React from 'react';
 import { BoardWrapper } from '../../../components/BoardWrapper';
 import type { GameRoom, BaseGameState } from '../types';
 import { getPlayerColorPalette, getLudoColorName } from '../../../theme/playerColors';
+import { getSixLudoCoords } from './sixPlayerGeometry';
+import { SixPlayerBoardSurface } from './SixPlayerBoardSurface';
 import './ludo.css';
 
 export interface LudoGameSpecificState {
@@ -41,34 +43,9 @@ const LUDO_TRACK_COORDS: [number, number][] = [
   [7, 0], [6, 0]
 ];
 
-// 6-player track: 78 cells, on a 15x24 board layout.
-const LUDO_6_TRACK_COORDS: [number, number][] = [
-  [6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
-  [5, 6], [4, 6], [3, 6], [2, 6],
-  [2, 7],
-  [2, 8], [3, 8], [4, 8], [5, 8],
-  [6, 9], [6, 10], [6, 11], [6, 12], [6, 13], [6, 14],
-  [5, 15], [4, 15], [3, 15], [2, 15],
-  [2, 16],
-  [2, 17], [3, 17], [4, 17], [5, 17],
-  [6, 18], [6, 19], [6, 20], [6, 21], [6, 22], [6, 23],
-  [7, 23], [8, 23], [8, 22], [8, 21], [8, 20], [8, 19], [8, 18],
-  [9, 17], [10, 17], [11, 17], [12, 17],
-  [12, 16],
-  [12, 15], [11, 15], [10, 15], [9, 15],
-  [8, 14], [8, 13], [8, 12], [8, 11], [8, 10], [8, 9],
-  [9, 8], [10, 8], [11, 8], [12, 8],
-  [12, 7],
-  [12, 6], [11, 6], [10, 6], [9, 6],
-  [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0],
-  [7, 0]
-];
-
 /**
  * Resolves a player's "base index" (0..3 for 4p, 0..5 for 6p) from their
- * chosen color, falling back to player list order. Extracted from App.tsx's
- * `getPlayerBaseIndex`, but now sourcing the valid-colors array from the
- * shared `PLAYER_COLORS` palette instead of a locally hardcoded array.
+ * chosen color, falling back to player list order for older rooms.
  */
 export const getPlayerBaseIndex = (room: GameRoom | null, gameState: LudoGameState, pId: string): number => {
   const p = room?.players?.find(x => x.id === pId) || gameState.players?.find(x => x.id === pId);
@@ -77,95 +54,56 @@ export const getPlayerBaseIndex = (room: GameRoom | null, gameState: LudoGameSta
   const colors = getPlayerColorPalette(maxPlayers);
 
   if (color) {
-    const idx = colors.indexOf(color);
+    const idx = colors.findIndex(candidate => candidate.toLowerCase() === color.toLowerCase());
     if (idx !== -1) return idx;
   }
-  const idx = room?.players?.findIndex(x => x.id === pId) ?? -1;
+  const idx = (room?.players || gameState.players || []).findIndex(x => x.id === pId);
   return idx === -1 ? 0 : idx;
 };
 
-/** Ludo coordinate solver, extracted verbatim (behavior-wise) from App.tsx's `getLudoCoords`. */
+/** Resolve pawn coordinates against the rendered four- or six-player board. */
 export const getLudoCoords = (room: GameRoom | null, playerIdx: number, position: number, tokenIdx: number, maxPlayers?: number) => {
   const is6 = maxPlayers !== undefined
     ? maxPlayers === 6
     : room?.lobbySettings?.maxPlayers === 6;
-  const trackLength = is6 ? 78 : 52;
-  const cellW = 1000 / (is6 ? 24 : 15);
-  const cellH = (is6 ? 625 : 1000) / 15;
+  if (is6) return getSixLudoCoords(playerIdx, position, tokenIdx);
+  const trackLength = 52;
+  const cellW = 1000 / 15;
+  const cellH = 1000 / 15;
 
   if (position === -1) {
     let r = 0, c = 0;
-    if (is6) {
-      if (playerIdx === 0) {
-        r = tokenIdx < 2 ? 1.5 : 3.5;
-        c = tokenIdx % 2 === 0 ? 1.5 : 3.5;
-      } else if (playerIdx === 1) {
-        r = tokenIdx < 2 ? 1.5 : 3.5;
-        c = tokenIdx % 2 === 0 ? 9 + 1.5 : 9 + 3.5;
-      } else if (playerIdx === 2) {
-        r = tokenIdx < 2 ? 1.5 : 3.5;
-        c = tokenIdx % 2 === 0 ? 18 + 1.5 : 18 + 3.5;
-      } else if (playerIdx === 3) {
-        r = tokenIdx < 2 ? 9 + 1.5 : 9 + 3.5;
-        c = tokenIdx % 2 === 0 ? 18 + 1.5 : 18 + 3.5;
-      } else if (playerIdx === 4) {
-        r = tokenIdx < 2 ? 9 + 1.5 : 9 + 3.5;
-        c = tokenIdx % 2 === 0 ? 9 + 1.5 : 9 + 3.5;
-      } else {
-        r = tokenIdx < 2 ? 9 + 1.5 : 9 + 3.5;
-        c = tokenIdx % 2 === 0 ? 1.5 : 3.5;
-      }
+    if (playerIdx === 0) {
+      r = tokenIdx < 2 ? 2.13 : 3.87;
+      c = tokenIdx % 2 === 0 ? 2.13 : 3.87;
+    } else if (playerIdx === 1) {
+      r = tokenIdx < 2 ? 2.13 : 3.87;
+      c = tokenIdx % 2 === 0 ? 9 + 2.13 : 9 + 3.87;
+    } else if (playerIdx === 2) {
+      r = tokenIdx < 2 ? 9 + 2.13 : 9 + 3.87;
+      c = tokenIdx % 2 === 0 ? 9 + 2.13 : 9 + 3.87;
     } else {
-      if (playerIdx === 0) {
-        r = tokenIdx < 2 ? 2.13 : 3.87;
-        c = tokenIdx % 2 === 0 ? 2.13 : 3.87;
-      } else if (playerIdx === 1) {
-        r = tokenIdx < 2 ? 2.13 : 3.87;
-        c = tokenIdx % 2 === 0 ? 9 + 2.13 : 9 + 3.87;
-      } else if (playerIdx === 2) {
-        r = tokenIdx < 2 ? 9 + 2.13 : 9 + 3.87;
-        c = tokenIdx % 2 === 0 ? 9 + 2.13 : 9 + 3.87;
-      } else {
-        r = tokenIdx < 2 ? 9 + 2.13 : 9 + 3.87;
-        c = tokenIdx % 2 === 0 ? 2.13 : 3.87;
-      }
+      r = tokenIdx < 2 ? 9 + 2.13 : 9 + 3.87;
+      c = tokenIdx % 2 === 0 ? 2.13 : 3.87;
     }
     return { x: c * cellW, y: r * cellH };
   } else if (position >= 0 && position < trackLength) {
-    const coord = is6 ? LUDO_6_TRACK_COORDS[position] : LUDO_TRACK_COORDS[position];
+    const coord = LUDO_TRACK_COORDS[position];
     return { x: (coord[1] + 0.5) * cellW, y: (coord[0] + 0.5) * cellH };
   } else if (position >= trackLength && position < (trackLength + 5)) {
     const step = position - trackLength;
     let r = 7, c = 7;
-    if (is6) {
-      if (playerIdx === 0) { r = 7; c = step + 1; }
-      else if (playerIdx === 1) { r = step + 3; c = 7; }
-      else if (playerIdx === 2) { r = step + 3; c = 16; }
-      else if (playerIdx === 3) { r = 7; c = 22 - step; }
-      else if (playerIdx === 4) { r = 11 - step; c = 16; }
-      else { r = 11 - step; c = 7; }
-    } else {
-      if (playerIdx === 0) { r = 7; c = step + 1; }
-      else if (playerIdx === 1) { r = step + 1; c = 7; }
-      else if (playerIdx === 2) { r = 7; c = 13 - step; }
-      else { r = 13 - step; c = 7; }
-    }
+    if (playerIdx === 0) { r = 7; c = step + 1; }
+    else if (playerIdx === 1) { r = step + 1; c = 7; }
+    else if (playerIdx === 2) { r = 7; c = 13 - step; }
+    else { r = 13 - step; c = 7; }
     return { x: (c + 0.5) * cellW, y: (r + 0.5) * cellH };
   } else {
     let r = 7, c = 7;
-    if (is6) {
-      if (playerIdx === 0) { r = 7; c = 6; }
-      else if (playerIdx === 1) { r = 6; c = 7; }
-      else if (playerIdx === 2) { r = 6; c = 16; }
-      else if (playerIdx === 3) { r = 7; c = 17; }
-      else if (playerIdx === 4) { r = 8; c = 16; }
-      else { r = 8; c = 7; }
-    } else {
-      if (playerIdx === 0) { r = 7; c = 6; }
-      else if (playerIdx === 1) { r = 6; c = 7; }
-      else if (playerIdx === 2) { r = 7; c = 8; }
-      else { r = 8; c = 7; }
-    }
+    if (playerIdx === 0) { r = 7; c = 6; }
+    else if (playerIdx === 1) { r = 6; c = 7; }
+    else if (playerIdx === 2) { r = 7; c = 8; }
+    else { r = 8; c = 7; }
     return { x: (c + 0.5) * cellW, y: (r + 0.5) * cellH };
   }
 };
@@ -224,56 +162,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
 
   const ludoCells: React.ReactNode[] = [];
 
-  if (is6) {
-    for (let r = 0; r < 15; r++) {
-      for (let c = 0; c < 24; c++) {
-        // Check Red base
-        if (r < 6 && c < 6) continue;
-        // Check Orange base
-        if (r < 6 && c >= 9 && c < 15) continue;
-        // Check Yellow base
-        if (r < 6 && c >= 18) continue;
-        // Check Green base
-        if (r >= 9 && c >= 18) continue;
-        // Check Blue base
-        if (r >= 9 && c >= 9 && c < 15) continue;
-        // Check Purple base
-        if (r >= 9 && c < 6) continue;
-        // Check Left Center Home
-        if (r >= 6 && r <= 8 && c >= 6 && c <= 8) continue;
-        // Check Right Center Home
-        if (r >= 6 && r <= 8 && c >= 15 && c <= 17) continue;
-
-        let cellClass = 'ludo-cell path-neutral';
-        // Home stretches
-        if (r === 7 && c >= 1 && c <= 5) cellClass = 'ludo-cell path-red';
-        else if (c === 7 && r >= 1 && r <= 5) cellClass = 'ludo-cell path-orange';
-        else if (c === 16 && r >= 1 && r <= 5) cellClass = 'ludo-cell path-yellow';
-        else if (r === 7 && c >= 18 && c <= 22) cellClass = 'ludo-cell path-green';
-        else if (c === 16 && r >= 9 && r <= 13) cellClass = 'ludo-cell path-blue';
-        else if (c === 7 && r >= 9 && r <= 13) cellClass = 'ludo-cell path-purple';
-        // Start cells
-        else if (r === 6 && c === 1) cellClass = 'ludo-cell path-red start-cell';
-        else if (r === 1 && c === 8) cellClass = 'ludo-cell path-orange start-cell';
-        else if (r === 1 && c === 17) cellClass = 'ludo-cell path-yellow start-cell';
-        else if (r === 8 && c === 22) cellClass = 'ludo-cell path-green start-cell';
-        else if (r === 13 && c === 15) cellClass = 'ludo-cell path-blue start-cell';
-        else if (r === 13 && c === 6) cellClass = 'ludo-cell path-purple start-cell';
-        // Safe cells
-        else if ((r === 2 && c === 6) || (r === 6 && c === 11) || (r === 2 && c === 15) || (r === 6 && c === 20) || (r === 12 && c === 17) || (r === 8 && c === 12) || (r === 12 && c === 8) || (r === 8 && c === 3)) {
-          cellClass = 'ludo-cell path-safe';
-        }
-
-        ludoCells.push(
-          <div
-            key={`cell-${r}-${c}`}
-            className={cellClass}
-            style={{ gridRow: r + 1, gridColumn: c + 1 }}
-          />
-        );
-      }
-    }
-  } else {
+  if (!is6) {
     for (let r = 0; r < 15; r++) {
       for (let c = 0; c < 15; c++) {
         if (r < 6 && c < 6) continue; // Base Red
@@ -321,16 +210,17 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
   });
 
   return (
-    <BoardWrapper virtualWidth={1000} virtualHeight={is6 ? 625 : 1000}>
-      <div
-        className="ludo-board-grid"
-        style={is6 ? {
-          width: '1000px',
-          height: '625px',
-          gridTemplateColumns: 'repeat(24, 1fr)',
-          aspectRatio: '24 / 15'
-        } : undefined}
-      >
+    <BoardWrapper virtualWidth={1000} virtualHeight={1000}>
+      <div className={`ludo-board-grid${is6 ? ' ludo-six-board' : ''}`}>
+        {is6 ? (
+          <SixPlayerBoardSurface
+            activeSeat={activePlayerBaseIndex}
+            names={getPlayerColorPalette(6).map((_, seat) => {
+              const player = (room?.players || gameState.players || []).find(p => getPlayerBaseIndex(room, gameState, p.id) === seat);
+              return player?.name;
+            })}
+          />
+        ) : <>
         {/* Bases */}
         <div className={`ludo-cell base-red ${activePlayerBaseIndex === 0 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '1/7' }}>
           <div className="base-inner">
@@ -340,50 +230,6 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
             <div className="base-pocket" />
           </div>
         </div>
-        {is6 ? (
-          <>
-            <div className={`ludo-cell base-orange ${activePlayerBaseIndex === 1 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '10/16' }}>
-              <div className="base-inner">
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-              </div>
-            </div>
-            <div className={`ludo-cell base-yellow ${activePlayerBaseIndex === 2 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '19/25' }}>
-              <div className="base-inner">
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-              </div>
-            </div>
-            <div className={`ludo-cell base-green ${activePlayerBaseIndex === 3 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '19/25' }}>
-              <div className="base-inner">
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-              </div>
-            </div>
-            <div className={`ludo-cell base-blue ${activePlayerBaseIndex === 4 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '10/16' }}>
-              <div className="base-inner">
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-              </div>
-            </div>
-            <div className={`ludo-cell base-purple ${activePlayerBaseIndex === 5 ? 'is-active-base' : ''}`} style={{ gridRow: '10/16', gridColumn: '1/7' }}>
-              <div className="base-inner">
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-                <div className="base-pocket" />
-              </div>
-            </div>
-          </>
-        ) : (
           <>
             <div className={`ludo-cell base-green ${activePlayerBaseIndex === 1 ? 'is-active-base' : ''}`} style={{ gridRow: '1/7', gridColumn: '10/16' }}>
               <div className="base-inner">
@@ -410,47 +256,8 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
               </div>
             </div>
           </>
-        )}
 
         {/* Center Homes */}
-        {is6 ? (
-          <>
-            {/* Left Center Home */}
-            <div className="ludo-cell ludo-center" style={{ gridRow: '7/10', gridColumn: '7/10', display: 'flex', position: 'relative' }}>
-              <div style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                background: 'conic-gradient(from 300deg, var(--accent-orange) 120deg, var(--accent-pink) 120deg 240deg, var(--accent-purple) 240deg)'
-              }} />
-              <div style={{
-                position: 'absolute', top: '15%', left: '15%', width: '70%', height: '70%',
-                backgroundColor: '#0d061f', borderRadius: '50%', border: '2px solid var(--accent-purple)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '11px', color: '#fff'
-              }}>
-                <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>HOME L</span>
-                {gameState.gameSpecificState.lastRoll > 0 && (
-                  <span style={{ fontSize: '15px', color: 'var(--accent-orange)', marginTop: '2px' }}>{gameState.gameSpecificState.lastRoll}</span>
-                )}
-              </div>
-            </div>
-            {/* Right Center Home */}
-            <div className="ludo-cell ludo-center" style={{ gridRow: '7/10', gridColumn: '16/19', display: 'flex', position: 'relative' }}>
-              <div style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                background: 'conic-gradient(from 60deg, var(--accent-green) 120deg, var(--accent-blue) 120deg 240deg, var(--accent-gold) 240deg)'
-              }} />
-              <div style={{
-                position: 'absolute', top: '15%', left: '15%', width: '70%', height: '70%',
-                backgroundColor: '#0d061f', borderRadius: '50%', border: '2px solid var(--accent-purple)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '11px', color: '#fff'
-              }}>
-                <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>HOME R</span>
-                {gameState.gameSpecificState.lastRoll > 0 && (
-                  <span style={{ fontSize: '15px', color: 'var(--accent-green)', marginTop: '2px' }}>{gameState.gameSpecificState.lastRoll}</span>
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
           <div className="ludo-cell ludo-center" style={{ gridRow: '7/10', gridColumn: '7/10', display: 'flex', position: 'relative' }}>
             <div style={{
               position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
@@ -467,10 +274,10 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
               )}
             </div>
           </div>
-        )}
 
         {/* Render track cells */}
         {ludoCells}
+        </>}
 
         {/* Render Tokens */}
         {Object.entries(gameState.gameSpecificState.tokens || {}).map(([pId, tokenPositions]) => {

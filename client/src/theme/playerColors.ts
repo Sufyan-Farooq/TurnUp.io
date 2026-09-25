@@ -1,6 +1,5 @@
-// Single source of truth for player token/avatar colors.
-// Mirrors the CSS token-0..3 classes and Ludo base-* colors in index.css,
-// and the server's fixed per-color-index track offsets in engine/ludo.ts.
+// Display colors. Ludo has explicit seat orders, mirrored by the server's
+// ludoPalette.ts because the client and server are built separately.
 export const PLAYER_COLORS = [
   { id: 'red', hex: '#FF5C66', cssVar: 'var(--coral)' },
   { id: 'blue', hex: '#4E8CFF', cssVar: 'var(--accent-blue)' },
@@ -25,8 +24,10 @@ export function getPlayerColorByIndex(index: number) {
 
 /** Ordered hex palette for a lobby of the given size (Ludo boards use 4 or 6 seats). */
 export function getPlayerColorPalette(maxPlayers?: number): string[] {
-  const count = maxPlayers === 6 ? 6 : 4;
-  return PLAYER_COLORS.slice(0, count).map((c) => c.hex);
+  const seats = maxPlayers === 6
+    ? ['red', 'blue', 'green', 'yellow', 'orange', 'purple']
+    : ['red', 'green', 'yellow', 'blue'];
+  return seats.map(id => PLAYER_COLORS.find(color => color.id === id)!.hex);
 }
 
 /**
@@ -51,6 +52,8 @@ export function getValidAppearanceColors(gameType: string | undefined, maxPlayer
 
 /** Ludo base/path color name for a given base index, matching the CSS .base-* classes. */
 export function getLudoColorName(baseIdx: number, maxPlayers?: number): string {
-  const palette = maxPlayers === 6 ? PLAYER_COLORS : PLAYER_COLORS.slice(0, 4);
-  return palette[baseIdx]?.id ?? 'red';
+  const seats = maxPlayers === 6
+    ? ['red', 'blue', 'green', 'yellow', 'orange', 'purple']
+    : ['red', 'green', 'yellow', 'blue'];
+  return seats[baseIdx] ?? 'red';
 }

@@ -148,6 +148,126 @@
   z-index: 190 !important;
 }
 
+/* Six players: one hexagonal board, one center, and geometry shared with pawns. */
+.ludo-board-grid.ludo-six-board {
+  display: block;
+  width: 1000px;
+  height: 1000px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.ludo-six-board::after { display: none; }
+
+.ludo-six-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 28px 36px rgba(3, 1, 8, .55));
+  pointer-events: none;
+}
+
+.ludo-six-track-cell,
+.ludo-six-lane-cell {
+  position: absolute;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(44, 32, 62, .72);
+  border-radius: 4px;
+  background: #e9e1f3;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .8), 0 2px 5px rgba(0, 0, 0, .34);
+}
+
+.ludo-six-track-cell.is-start {
+  border: 3px solid #fff;
+  background: var(--seat-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--seat-color) 35%, transparent), 0 3px 9px #090511;
+}
+
+.ludo-six-track-cell.is-safe::after {
+  content: '✦';
+  position: absolute;
+  inset: -2px;
+  display: grid;
+  place-items: center;
+  color: #44335c;
+  font-size: 26px;
+}
+
+.ludo-six-lane-cell {
+  border-color: color-mix(in srgb, var(--seat-color) 80%, white);
+  background: color-mix(in srgb, var(--seat-color) 75%, #f7f1ff);
+}
+
+.ludo-six-base {
+  position: absolute;
+  z-index: 3;
+  width: 166px;
+  height: 166px;
+  transform: translate(-50%, -50%);
+  border: 4px solid var(--seat-color);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--seat-color) 25%, #171322);
+  box-shadow: inset 0 0 0 5px rgba(10, 6, 18, .5), 0 8px 20px rgba(3, 1, 8, .5);
+}
+
+.ludo-six-base.is-active {
+  box-shadow: inset 0 0 0 5px rgba(10, 6, 18, .5), 0 0 0 7px color-mix(in srgb, var(--seat-color) 40%, transparent), 0 8px 25px rgba(3, 1, 8, .55);
+}
+
+.ludo-six-base__name {
+  position: absolute;
+  left: 50%;
+  bottom: -27px;
+  max-width: 165px;
+  padding: 4px 9px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--seat-color) 65%, #fff);
+  border-radius: 999px;
+  background: #14101e;
+  color: #fff;
+  font: 700 12px 'Space Mono', monospace;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ludo-six-base__slot {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(255, 255, 255, .4);
+  border-radius: 50%;
+  background: rgba(9, 5, 18, .52);
+}
+
+.ludo-six-home {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font: 800 9px 'Space Mono', monospace;
+  letter-spacing: .06em;
+  pointer-events: none;
+}
+
+.ludo-six-board .ludo-token {
+  width: 31px;
+  height: 31px;
+  border-width: 2px;
+}
+
+.ludo-six-board .ludo-token svg { width: 20px; height: 20px; }
+
 .ludo-token__move-indicator {
   position: absolute;
   bottom: calc(100% + 9px);

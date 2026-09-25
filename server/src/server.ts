@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { IPlayer, GameAction, GameState } from './engine/interfaces';
 import { SnakesLaddersRuleset } from './engine/snakesLadders';
 import { LudoRuleset } from './engine/ludo';
+import { getLudoSeatColors } from './engine/ludoPalette';
 import { UnoRuleset } from './engine/uno';
 import { MonopolyRuleset, getMonopolySpacePrice } from './engine/monopoly';
 import { GameEngineManager } from './engine/interfaces';
@@ -879,12 +880,10 @@ io.on('connection', (socket: Socket) => {
           '#b07d62', '#ffafcc', '#ff007f', '#7b2cbf'
         ];
         if (room.gameType === 'LUDO') {
-          colors = maxPlayersLimit === 6
-            ? ['#d90429', '#fb8500', '#ffb703', '#38b000', '#00b4d8', '#7b2cbf']
-            : ['#d90429', '#38b000', '#ffb703', '#00b4d8'];
+          colors = [...getLudoSeatColors(maxPlayersLimit)];
         }
         const takenColors = room.players.map(p => p.color).filter(Boolean);
-        const availableColors = colors.filter(c => !takenColors.includes(c));
+        const availableColors = colors.filter(c => !takenColors.some(taken => taken?.toLowerCase() === c.toLowerCase()));
 
         for (let i = 0; i < botsNeeded; i++) {
           const botId = `bot-${uuidv4().substring(0, 8)}`;
@@ -999,9 +998,7 @@ io.on('connection', (socket: Socket) => {
     if (!room || room.status !== 'LOBBY') return callback?.({ success: false, message: 'Appearance can only change in the lobby.' });
 
     const requestedColor = payload?.color;
-    const ludoColors = room.lobbySettings?.maxPlayers === 6
-      ? ['#FF5C66', '#4E8CFF', '#3FBF7F', '#FFC247', '#FB8500', '#6C3CE9']
-      : ['#FF5C66', '#4E8CFF', '#3FBF7F', '#FFC247'];
+    const ludoColors = getLudoSeatColors(room.lobbySettings?.maxPlayers ?? 4);
     if (typeof requestedColor !== 'string' || (room.gameType === 'LUDO'
       ? !ludoColors.some(candidate => candidate.toLowerCase() === requestedColor.toLowerCase())
       : !/^#[0-9a-f]{6}$/i.test(requestedColor))) {
