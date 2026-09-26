@@ -136,30 +136,50 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
 
-    const existingUser = await prisma.user.findFirst({
+    const trimmedUsername = String(username).trim();
+    const trimmedEmail = String(email).trim().toLowerCase();
+
+    if (trimmedUsername.length < 2 || trimmedUsername.length > 20) {
+      return res.status(400).json({ success: false, message: 'Username must be between 2 and 20 characters.' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+    }
+
+    // Check email collision
+    const existingByEmail = await prisma.user.findFirst({
+      where: { email: trimmedEmail }
+    });
+    if (existingByEmail) {
+      return res.status(400).json({ success: false, message: 'An account with this email is already registered.' });
+    }
+
+    // Check username collision (case-insensitive)
+    const existingByUsername = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email },
-          { username }
-        ]
+        username: { equals: trimmedUsername, mode: 'insensitive' }
       }
     });
-
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Username or Email already registered.' });
+    if (existingByUsername) {
+      return res.status(400).json({ success: false, message: 'This username is already taken. Please choose another.' });
     }
 
     const passwordHash = hashPassword(password);
 
     // Wrap user + stats creation in a single transaction: if GameStat creation fails,
-    // the User row is rolled back too, so a retried registration doesn't hit
-    // "already registered" for a signup the client believes never succeeded.
+    // the User row is rolled back too.
     const gameTypes: ('SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY')[] = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
-          username,
-          email,
+          username: trimmedUsername,
+          email: trimmedEmail,
           passwordHash,
           role: 'USER'
         }
@@ -183,7 +203,7 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
     res.json({
       success: true,
       token,
-      user: { id: user.id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error: any) {
     console.error('Registration error:', error);
@@ -195,27 +215,29 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   try {
     const { usernameOrEmail, password } = req.body;
     if (!usernameOrEmail || !password) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+      return res.status(400).json({ success: false, message: 'Please provide both username/email and password.' });
     }
+
+    const trimmed = String(usernameOrEmail).trim();
 
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: usernameOrEmail },
-          { username: usernameOrEmail }
+          { email: trimmed.toLowerCase() },
+          { username: { equals: trimmed, mode: 'insensitive' } }
         ]
       }
     });
 
     if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+      return res.status(401).json({ success: false, message: 'Invalid username/email or password.' });
     }
 
     const token = generateToken({ id: user.id, username: user.username, role: user.role });
     res.json({
       success: true,
       token,
-      user: { id: user.id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error: any) {
     console.error('Login error:', error);
@@ -226,37 +248,20 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
 app.post('/api/auth/guest', authRateLimiter, async (req, res) => {
   try {
     const { username } = req.body;
-    const finalUsername = username?.trim() || `Guest_${uuidv4().substring(0, 4)}`;
+    const trimmed = typeof username === 'string' ? username.trim() : '';
+    const finalUsername = trimmed && trimmed.length > 0
+      ? trimmed.substring(0, 15)
+      : `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // Wrap user + stats creation in a single transaction (see /api/auth/register for rationale).
-    const gameTypes: ('SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY')[] = ['SNAKES_LADDERS', 'LUDO', 'UNO', 'MONOPOLY'];
-    const user = await prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          username: finalUsername,
-          role: 'GUEST'
-        }
-      });
+    // GUEST accounts are stateless and NOT inserted into the PostgreSQL users table.
+    // They are issued a valid JWT so they can authenticate over WebSockets and participate in lobbies/games.
+    const guestId = uuidv4();
+    const token = generateToken({ id: guestId, username: finalUsername, role: 'GUEST' });
 
-      await Promise.all(
-        gameTypes.map(gt =>
-          tx.gameStat.create({
-            data: {
-              userId: createdUser.id,
-              gameType: gt
-            }
-          })
-        )
-      );
-
-      return createdUser;
-    });
-
-    const token = generateToken({ id: user.id, username: user.username, role: user.role });
     res.json({
       success: true,
       token,
-      user: { id: user.id, username: user.username, role: user.role }
+      user: { id: guestId, username: finalUsername, role: 'GUEST' }
     });
   } catch (error: any) {
     console.error('Guest login error:', error);
@@ -316,10 +321,15 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // All GameStat rows for a given user
 app.get('/api/users/:id/stats', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!UUID_REGEX.test(id)) {
+      return res.json({ success: true, data: [] });
+    }
     const stats = await prisma.gameStat.findMany({
       where: { userId: id }
     });
@@ -330,15 +340,130 @@ app.get('/api/users/:id/stats', async (req, res) => {
   }
 });
 
+// Comprehensive user profile including career aggregates and match history
+app.get('/api/users/:id/profile', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!UUID_REGEX.test(id)) {
+      return res.status(404).json({ success: false, isGuest: true, message: 'Guest profiles are temporary and not saved to the database.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const stats = await prisma.gameStat.findMany({
+      where: { userId: id }
+    });
+
+    const matchPlayers = await prisma.matchPlayer.findMany({
+      where: { userId: id },
+      include: {
+        match: {
+          include: {
+            winner: { select: { id: true, username: true } },
+            players: {
+              include: {
+                user: { select: { id: true, username: true } }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { match: { startedAt: 'desc' } },
+      take: 25
+    });
+
+    const matchHistory = matchPlayers.map(mp => ({
+      matchId: mp.matchId,
+      gameType: mp.match.gameType,
+      rank: mp.rank,
+      score: mp.score,
+      startedAt: mp.match.startedAt,
+      endedAt: mp.match.endedAt,
+      status: mp.match.status,
+      isWinner: mp.match.winnerId === id,
+      winner: mp.match.winner ? { id: mp.match.winner.id, username: mp.match.winner.username } : null,
+      opponents: mp.match.players
+        .filter(p => p.userId !== id)
+        .map(p => ({
+          userId: p.userId,
+          username: p.user?.username || 'Player',
+          rank: p.rank,
+          score: p.score
+        }))
+    }));
+
+    const totalPlayed = stats.reduce((acc, s) => acc + s.gamesPlayed, 0);
+    const totalWon = stats.reduce((acc, s) => acc + s.gamesWon, 0);
+    const totalPoints = stats.reduce((acc, s) => acc + s.totalPoints, 0);
+    const winRate = totalPlayed > 0 ? Math.round((totalWon / totalPlayed) * 100) : 0;
+
+    res.json({
+      success: true,
+      profile: {
+        user,
+        stats,
+        aggregates: {
+          totalPlayed,
+          totalWon,
+          totalPoints,
+          winRate
+        },
+        matchHistory
+      }
+    });
+  } catch (error: any) {
+    console.error('User profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error while fetching user profile.' });
+  }
+});
+
 // Helper function to persist match statistics to PostgreSQL on game over
 async function saveMatchOutcome(room: GameRoom, winnerId: string | null, finalState: GameState) {
   try {
-    const dbWinnerId = (winnerId && !winnerId.startsWith('bot-')) ? winnerId : null;
+    const nonBotParticipants = room.players.filter(p => !p.id.startsWith('bot-'));
+    if (nonBotParticipants.length === 0) return;
+
+    // Filter candidate UUIDs and check which players actually exist in PostgreSQL
+    const candidateIds = nonBotParticipants.map(p => p.id).filter(id => UUID_REGEX.test(id));
+    if (candidateIds.length === 0) {
+      console.log(`[saveMatchOutcome] Room ${room.id} ended with only guest players. Skipping DB persistence.`);
+      return;
+    }
+
+    const registeredUsers = await prisma.user.findMany({
+      where: {
+        id: { in: candidateIds },
+        role: 'USER'
+      },
+      select: { id: true, username: true }
+    });
+    const registeredUserMap = new Map(registeredUsers.map(u => [u.id, u]));
+
+    if (registeredUsers.length === 0) {
+      console.log(`[saveMatchOutcome] Room ${room.id} ended with no registered users. Skipping DB persistence.`);
+      return;
+    }
+
+    // Set winnerId only if winner is a registered user
+    const dbWinnerId = (winnerId && registeredUserMap.has(winnerId)) ? winnerId : null;
 
     // 1. Create MatchHistory record
     const match = await prisma.matchHistory.create({
       data: {
-        id: uuidv4(), // Generate a unique match ID
+        id: uuidv4(),
         gameType: room.gameType,
         status: 'ENDED',
         winnerId: dbWinnerId || undefined,
@@ -346,30 +471,28 @@ async function saveMatchOutcome(room: GameRoom, winnerId: string | null, finalSt
       }
     });
 
-    // 2. Create MatchPlayer links and update GameStats
-    const participants = room.players;
+    // 2. Create MatchPlayer links and update GameStats for registered players only
     await Promise.all(
-      participants.map(async (player) => {
-        if (player.id.startsWith('bot-')) {
-          return; // Skip database entries for bots
+      nonBotParticipants.map(async (player) => {
+        if (!registeredUserMap.has(player.id)) {
+          return; // Skip database entries for guests and unauthenticated players
         }
 
         const isWinner = player.id === winnerId;
-        const rank = isWinner ? 1 : 2; // Simple standing mapping
-        
+        const rank = isWinner ? 1 : 2;
+
         let score = 0;
         if (room.gameType === 'MONOPOLY') {
-          score = finalState.gameSpecificState.cash?.[player.id] || 0;
+          score = finalState.gameSpecificState?.cash?.[player.id] || 0;
         } else if (room.gameType === 'UNO') {
-          score = finalState.gameSpecificState.hands?.[player.id]?.length || 0;
+          score = finalState.gameSpecificState?.hands?.[player.id]?.length || 0;
         } else if (room.gameType === 'LUDO') {
-          const tokens = finalState.gameSpecificState.tokens?.[player.id] || [];
+          const tokens = finalState.gameSpecificState?.tokens?.[player.id] || [];
           score = tokens.filter((t: number) => t === 57).length;
         } else if (room.gameType === 'SNAKES_LADDERS') {
-          score = finalState.gameSpecificState.positions?.[player.id] || 1;
+          score = finalState.gameSpecificState?.positions?.[player.id] || 1;
         }
 
-        // Save player record
         await prisma.matchPlayer.create({
           data: {
             matchId: match.id,
@@ -379,7 +502,6 @@ async function saveMatchOutcome(room: GameRoom, winnerId: string | null, finalSt
           }
         });
 
-        // Update aggregated statistics
         await prisma.gameStat.upsert({
           where: {
             userId_gameType: {
@@ -403,9 +525,9 @@ async function saveMatchOutcome(room: GameRoom, winnerId: string | null, finalSt
       })
     );
 
-    console.log(`Successfully persisted match history and stats for room ${room.id}`);
+    console.log(`[saveMatchOutcome] Successfully persisted match ${match.id} and updated stats for room ${room.id}`);
   } catch (error) {
-    console.error(`Error saving match outcome for room ${room.id}:`, error);
+    console.error(`[saveMatchOutcome] Error saving match outcome for room ${room.id}:`, error);
   }
 }
 
@@ -1228,6 +1350,47 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  // 7b. Explicit Leave Room (Exit button / user leaves lobby or active game)
+  socket.on('leave_room', (callback?: Function) => {
+    const { playerId, roomId } = socket.data;
+    if (!playerId || !roomId) {
+      if (callback) callback({ success: true, message: 'Not in a room.' });
+      return;
+    }
+
+    const room = rooms[roomId];
+    if (!room) {
+      delete playerToRoom[playerId];
+      socket.data.roomId = undefined;
+      socket.leave(roomId);
+      if (callback) callback({ success: true });
+      return;
+    }
+
+    console.log(`Player ${playerId} explicitly left room ${roomId}.`);
+
+    socket.leave(roomId);
+    socket.data.roomId = undefined;
+    delete playerToRoom[playerId];
+
+    if (disconnectTimers[playerId]) {
+      clearTimeout(disconnectTimers[playerId]);
+      delete disconnectTimers[playerId];
+    }
+
+    const spectatorIndex = room.spectators?.findIndex(s => s.id === playerId) ?? -1;
+    if (spectatorIndex !== -1 && room.spectators) {
+      room.spectators.splice(spectatorIndex, 1);
+      io.to(roomId).emit('spectator_left', { playerId });
+      if (callback) callback({ success: true });
+      return;
+    }
+
+    handlePermanentLeave(roomId, playerId);
+
+    if (callback) callback({ success: true });
+  });
+
   // 8. Handle Disconnects
   socket.on('disconnect', () => {
     const { playerId, roomId } = socket.data;
@@ -1244,15 +1407,18 @@ io.on('connection', (socket: Socket) => {
     // the latest socket is allowed to mark that identity offline.
     if (!session || session.socketId !== socket.id) return;
 
+    // Lobbies have a shorter grace window (10s) so ghost players don't clog waiting rooms
+    const graceWindowMs = room.status === 'LOBBY' ? 10000 : 30000;
+
     if (player) {
       player.connected = false;
       io.to(roomId).emit('player_disconnected', { playerId });
 
-      console.log(`Player ${player.name} (${playerId}) disconnected. Starting 30s grace period.`);
+      console.log(`Player ${player.name} (${playerId}) disconnected from ${room.status}. Starting ${graceWindowMs / 1000}s grace period.`);
 
       disconnectTimers[playerId] = setTimeout(() => {
         handlePermanentLeave(roomId, playerId);
-      }, 30000); // 30-second grace window
+      }, graceWindowMs);
     } else if (spectator) {
       spectator.connected = false;
       disconnectTimers[playerId] = setTimeout(() => {
@@ -1261,7 +1427,7 @@ io.on('connection', (socket: Socket) => {
         freshRoom.spectators = freshRoom.spectators?.filter(s => s.id !== playerId);
         delete playerToRoom[playerId];
         delete disconnectTimers[playerId];
-      }, 30000);
+      }, graceWindowMs);
     }
   });
 

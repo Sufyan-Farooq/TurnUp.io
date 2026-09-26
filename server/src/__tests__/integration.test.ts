@@ -293,4 +293,33 @@ describe('Full room -> game flow (socket.io integration)', () => {
     expect(rejected.success).toBe(false);
     expect(rejected.message).toMatch(/500/);
   }, 15000);
+
+  it('immediately removes player from lobby when leave_room is emitted', async () => {
+    const hostToken = generateToken({ id: 'leave-host', username: 'LeaveHost', role: 'USER' });
+    const guestToken = generateToken({ id: 'leave-guest', username: 'LeaveGuest', role: 'USER' });
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Leave Test', token: hostToken, gameType: 'LUDO'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+
+    // Host listens for player_left_permanent
+    const leavePromise = waitForEvent<any>(hostClient, 'player_left_permanent');
+
+    // Guest emits leave_room
+    const leaveAck = await emitWithAck<{ success: boolean }>(guestClient, 'leave_room');
+    expect(leaveAck.success).toBe(true);
+
+    const leavePayload = await leavePromise;
+    expect(leavePayload.playerId).toBe('leave-guest');
+
+    // Guest should now be able to join another room immediately without "Leave your current room first" error
+    const newRoom: any = await emitWithAck(guestClient, 'create_room', {
+      name: 'New Room', token: guestToken, gameType: 'UNO'
+    });
+    expect(newRoom.success).toBe(true);
+  }, 15000);
 });

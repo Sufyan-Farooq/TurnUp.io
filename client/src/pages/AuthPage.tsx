@@ -1,53 +1,78 @@
 import React, { useState } from 'react';
-import { KeyRound, UserPlus, Dice5, ArrowLeft } from 'lucide-react';
+import {
+  KeyRound,
+  UserPlus,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  ShieldCheck,
+  Dices
+} from 'lucide-react';
 import { Button } from '../components/ui';
 import { SERVER_URL } from '../hooks/useSocket';
+import type { AuthUser } from '../types/game';
+import { TurnUpLogo } from '../components/brand/TurnUpLogo';
 
-export interface AuthUser {
-  id: string;
-  username: string;
-  role: string;
-}
-
-export type AuthTab = 'login' | 'register' | 'guest';
+export type AuthTab = 'guest' | 'login' | 'register';
 
 export interface AuthPageProps {
-  /** Which auth card is currently shown. */
   authTab: AuthTab;
-  /** Update the currently shown auth card. */
   onAuthTabChange: (tab: AuthTab) => void;
-  /** Called with the token + user returned by the server on a successful
-   * login, register, or guest entry. The parent is responsible for
-   * persisting these (localStorage) and updating app-level auth state. */
   onAuthenticated: (token: string, user: AuthUser) => void;
 }
 
-/**
- * Landing auth screen: guest nickname entry (default), plus login/register
- * tabs. Extracted from App.tsx's inline auth card markup with no behavior
- * changes other than swapping ad hoc buttons/icons for shared primitives.
- */
-export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, onAuthenticated }) => {
+const FUN_NICKNAMES = [
+  'LuckyDice', 'StarRoller', 'NeonKing', 'PixelPawn',
+  'BoardWizard', 'SpeedyTurn', 'GoldenUno', 'AceStriker',
+  'TokenMaster', 'CosmicRider', 'VelvetRoll', 'TurboFox'
+];
+
+export const AuthPage: React.FC<AuthPageProps> = ({
+  authTab,
+  onAuthTabChange,
+  onAuthenticated,
+}) => {
   const [loginInput, setLoginInput] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
   const [regUsername, setRegUsername] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
   const [guestUsername, setGuestUsername] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRandomNickname = () => {
+    const randomName = FUN_NICKNAMES[Math.floor(Math.random() * FUN_NICKNAMES.length)];
+    const num = Math.floor(10 + Math.random() * 90);
+    setGuestUsername(`${randomName}${num}`);
+  };
 
   const handleGuestLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    if (!guestUsername.trim()) {
-      setAuthError('Enter a nickname to continue.');
+
+    const trimmed = guestUsername.trim();
+    if (!trimmed) {
+      setAuthError('Please enter a nickname to play as a guest.');
       return;
     }
+    if (trimmed.length > 15) {
+      setAuthError('Nickname must be 15 characters or less.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const response = await fetch(`${SERVER_URL}/api/auth/guest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: guestUsername.trim() })
+        body: JSON.stringify({ username: trimmed }),
       });
       const data = await response.json();
       if (data.success) {
@@ -57,47 +82,81 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
       }
     } catch (err) {
       console.error(err);
-      setAuthError('Server connection failed.');
+      setAuthError('Server connection failed. Is the game server online?');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    if (!loginInput.trim() || !loginPassword) {
-      setAuthError('Please fill in all fields.');
+
+    const trimmed = loginInput.trim();
+    if (!trimmed || !loginPassword) {
+      setAuthError('Please provide both username/email and password.');
       return;
     }
+
+    setIsLoading(true);
     try {
       const response = await fetch(`${SERVER_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameOrEmail: loginInput.trim(), password: loginPassword })
+        body: JSON.stringify({ usernameOrEmail: trimmed, password: loginPassword }),
       });
       const data = await response.json();
       if (data.success) {
         onAuthenticated(data.token, data.user);
       } else {
-        setAuthError(data.message || 'Login failed.');
+        setAuthError(data.message || 'Invalid credentials.');
       }
     } catch (err) {
       console.error(err);
-      setAuthError('Server connection failed.');
+      setAuthError('Server connection failed. Is the game server online?');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    if (!regUsername.trim() || !regEmail.trim() || !regPassword) {
+
+    const trimmedUsername = regUsername.trim();
+    const trimmedEmail = regEmail.trim();
+
+    if (!trimmedUsername || !trimmedEmail || !regPassword) {
       setAuthError('Please fill in all fields.');
       return;
     }
+
+    if (trimmedUsername.length < 2 || trimmedUsername.length > 20) {
+      setAuthError('Username must be between 2 and 20 characters.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+
+    if (regPassword.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const response = await fetch(`${SERVER_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: regUsername.trim(), email: regEmail.trim(), password: regPassword })
+        body: JSON.stringify({
+          username: trimmedUsername,
+          email: trimmedEmail,
+          password: regPassword,
+        }),
       });
       const data = await response.json();
       if (data.success) {
@@ -107,203 +166,346 @@ export const AuthPage: React.FC<AuthPageProps> = ({ authTab, onAuthTabChange, on
       }
     } catch (err) {
       console.error(err);
-      setAuthError('Server connection failed.');
+      setAuthError('Server connection failed. Is the game server online?');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (authTab === 'guest') {
-    return (
-      <div className="landing-card auth-card auth-card--guest">
-        <div className="brand-logo-mark auth-logo">
-          <Dice5 size={56} style={{ filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.3))' }} />
+  const handleTabChange = (tab: AuthTab) => {
+    setAuthError('');
+    onAuthTabChange(tab);
+  };
+
+  return (
+    <div className="landing-card auth-card auth-card--modern">
+      {/* Brand Header */}
+      <div className="auth-brand-header">
+        <div style={{ margin: '0 auto 16px auto', display: 'flex', justifyContent: 'center' }}>
+          <TurnUpLogo size={70} variant="mark" />
         </div>
 
-        <h1 style={{ margin: '0 0 12px 0', lineHeight: 1 }}>
-          <span className="wordmark-turn" style={{ fontSize: '48px' }}>turn</span>
-          <span className="wordmark-up" style={{ fontSize: '48px' }}>Up</span>
-          <span className="wordmark-turn" style={{ fontSize: '26px', opacity: 0.5 }}>.io</span>
+        <h1 className="auth-brand-wordmark" style={{ margin: '0 0 10px 0', lineHeight: 1 }}>
+          <TurnUpLogo variant="wordmark" size="lg" />
         </h1>
 
-        <p className="brand-tagline" style={{ marginBottom: '32px', fontSize: '14.5px' }}>
-          Turn any group chat into game night. Ludo, Monopoly, Uno &amp; more — no downloads.
+        <p className="brand-tagline">
+          Turn any group chat into game night. Ludo, Monopoly, Uno &amp; more.
         </p>
+      </div>
 
-        {authError && (
-          <div style={{
-            backgroundColor: 'rgba(255, 92, 102, 0.1)',
-            border: '1px solid var(--coral)',
-            color: 'var(--coral)',
-            padding: '12px 16px',
-            borderRadius: '10px',
-            marginBottom: '20px',
-            fontSize: '13px',
-            fontWeight: 600,
-            fontFamily: "'Manrope', sans-serif"
-          }} role="alert">
-            {authError}
+      {/* Segmented Mode Selector */}
+      <div className="auth-segmented-nav" role="tablist" aria-label="Authentication modes">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={authTab === 'guest'}
+          className={`auth-segment-btn ${authTab === 'guest' ? 'active' : ''}`}
+          onClick={() => handleTabChange('guest')}
+        >
+          <Sparkles size={14} /> Guest Play
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={authTab === 'login'}
+          className={`auth-segment-btn ${authTab === 'login' ? 'active' : ''}`}
+          onClick={() => handleTabChange('login')}
+        >
+          <KeyRound size={14} /> Sign In
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={authTab === 'register'}
+          className={`auth-segment-btn ${authTab === 'register' ? 'active' : ''}`}
+          onClick={() => handleTabChange('register')}
+        >
+          <UserPlus size={14} /> Create Account
+        </button>
+      </div>
+
+      {/* Error Message Alert */}
+      {authError && (
+        <div className="auth-alert" role="alert">
+          <AlertCircle size={16} className="auth-alert-icon" />
+          <div className="auth-alert-text">{authError}</div>
+        </div>
+      )}
+
+      {/* ── MODE 1: GUEST PLAY ── */}
+      {authTab === 'guest' && (
+        <form onSubmit={handleGuestLoginSubmit} className="auth-form">
+          <div className="auth-mode-hint guest-hint">
+            <strong>Instant Guest Mode:</strong> Jump in with a nickname. No password or email required. (Matches are not saved to a career profile).
           </div>
-        )}
 
-        <form onSubmit={handleGuestLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="text"
-            placeholder="Pick a nickname…"
-            value={guestUsername}
-            onChange={e => setGuestUsername(e.target.value)}
-            maxLength={15}
-            required
-            aria-label="Nickname"
-            autoComplete="nickname"
-            className="brand-input"
-            style={{ textAlign: 'center', fontSize: '17px', fontWeight: 600 }}
-          />
+          <div className="auth-input-group">
+            <input
+              type="text"
+              placeholder="Pick a nickname…"
+              value={guestUsername}
+              onChange={e => {
+                setGuestUsername(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              maxLength={15}
+              required
+              aria-label="Guest Nickname"
+              autoComplete="nickname"
+              className="brand-input auth-input"
+              style={{ textAlign: 'center', fontSize: '17px', fontWeight: 600 }}
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              className="auth-input-inline-action"
+              onClick={handleRandomNickname}
+              title="Generate random nickname"
+              aria-label="Generate random nickname"
+            >
+              <Dices size={16} /> Randomize
+            </button>
+          </div>
+
           <Button
             type="submit"
             variant="primary"
+            disabled={isLoading}
             style={{
               width: '100%',
-              padding: '16px',
-              fontSize: '18px',
+              padding: '15px',
+              fontSize: '17px',
               borderRadius: '14px',
               fontWeight: 700,
-              marginTop: '4px'
+              marginTop: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
             }}
           >
-            Enter Arena <Dice5 size={18} style={{ marginLeft: 6, verticalAlign: 'middle' }} />
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="spin" /> Entering Arena…
+              </>
+            ) : (
+              <>
+                Enter Arena <Dices size={18} />
+              </>
+            )}
           </Button>
+
+          <div className="auth-bottom-switch">
+            <span>Want to track wins &amp; match history?</span>{' '}
+            <button
+              type="button"
+              className="auth-link-btn"
+              onClick={() => handleTabChange('register')}
+            >
+              Create Account
+            </button>
+          </div>
         </form>
-
-        <div className="auth-switcher">
-          <button
-            type="button"
-            onClick={() => { onAuthTabChange('login'); setAuthError(''); }}
-            className="auth-text-action"
-          >
-            <KeyRound size={13} /> Sign In
-          </button>
-          <span style={{ color: 'var(--muted)', opacity: 0.4 }}>|</span>
-          <button
-            type="button"
-            onClick={() => { onAuthTabChange('register'); setAuthError(''); }}
-            className="auth-text-action"
-          >
-            <UserPlus size={13} /> Create Account
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="landing-card auth-card">
-      <button
-        type="button"
-        onClick={() => { onAuthTabChange('guest'); setAuthError(''); }}
-        className="auth-back-button"
-      >
-        <ArrowLeft size={14} /> Back
-      </button>
-
-      <h2 style={{ fontFamily: "'Fredoka', sans-serif", fontSize: '28px', fontWeight: 600, color: 'var(--cloud)', marginBottom: '24px', marginTop: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-        {authTab === 'login' ? <><KeyRound size={24} /> Sign In</> : <><UserPlus size={24} /> Create Account</>}
-      </h2>
-
-      {authError && (
-        <div style={{
-          backgroundColor: 'rgba(255, 92, 102, 0.1)',
-          border: '1px solid var(--coral)',
-          color: 'var(--coral)',
-          padding: '12px 16px',
-          borderRadius: '10px',
-          marginBottom: '16px',
-          fontSize: '13px',
-          fontFamily: "'Manrope', sans-serif"
-        }} role="alert">
-          {authError}
-        </div>
       )}
 
+      {/* ── MODE 2: SIGN IN ── */}
       {authTab === 'login' && (
-        <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="text"
-            placeholder="Username or Email"
-            value={loginInput}
-            onChange={e => setLoginInput(e.target.value)}
-            required
-            autoComplete="username"
-            aria-label="Username or email"
-            className="brand-input"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={loginPassword}
-            onChange={e => setLoginPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            aria-label="Password"
-            className="brand-input"
-          />
-          <Button type="submit" variant="primary" style={{ padding: '14px', fontSize: '16px', marginTop: '4px' }}>Sign In</Button>
+        <form onSubmit={handleLoginSubmit} className="auth-form">
+          <div className="auth-mode-hint login-hint">
+            <strong>Registered Sign In:</strong> Log in to access your profile, win rates, and recorded match history.
+          </div>
+
+          <div className="auth-input-group">
+            <input
+              type="text"
+              placeholder="Username or Email"
+              value={loginInput}
+              onChange={e => {
+                setLoginInput(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              required
+              autoComplete="username"
+              aria-label="Username or email"
+              className="brand-input auth-input"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="auth-input-group password-group">
+            <input
+              type={showLoginPassword ? 'text' : 'password'}
+              placeholder="Password"
+              value={loginPassword}
+              onChange={e => {
+                setLoginPassword(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              required
+              autoComplete="current-password"
+              aria-label="Password"
+              className="brand-input auth-input"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              className="password-toggle-btn"
+              onClick={() => setShowLoginPassword(p => !p)}
+              aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+              tabIndex={-1}
+            >
+              {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              fontSize: '16px',
+              borderRadius: '14px',
+              fontWeight: 700,
+              marginTop: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
+            }}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="spin" /> Signing In…
+              </>
+            ) : (
+              'Sign In'
+            )}
+          </Button>
+
+          <div className="auth-bottom-switch">
+            <span>Don&apos;t have an account yet?</span>{' '}
+            <button
+              type="button"
+              className="auth-link-btn"
+              onClick={() => handleTabChange('register')}
+            >
+              Create Account
+            </button>
+          </div>
         </form>
       )}
 
+      {/* ── MODE 3: CREATE ACCOUNT ── */}
       {authTab === 'register' && (
-        <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="text"
-            placeholder="Username"
-            value={regUsername}
-            onChange={e => setRegUsername(e.target.value)}
-            maxLength={15}
-            required
-            autoComplete="username"
-            aria-label="Username"
-            className="brand-input"
-          />
-          <input
-            type="email"
-            placeholder="Email Address"
-            value={regEmail}
-            onChange={e => setRegEmail(e.target.value)}
-            required
-            autoComplete="email"
-            aria-label="Email address"
-            className="brand-input"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={regPassword}
-            onChange={e => setRegPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-            minLength={8}
-            aria-label="Password"
-            className="brand-input"
-          />
-          <Button type="submit" variant="primary" style={{ padding: '14px', fontSize: '16px', marginTop: '4px' }}>Create Account</Button>
+        <form onSubmit={handleRegisterSubmit} className="auth-form">
+          <div className="auth-perks-banner">
+            <ShieldCheck size={16} color="var(--gold)" />
+            <span>Unlocks match history, career win rates &amp; leaderboard ranking</span>
+          </div>
+
+          <div className="auth-input-group">
+            <input
+              type="text"
+              placeholder="Username (2-20 characters)"
+              value={regUsername}
+              onChange={e => {
+                setRegUsername(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              maxLength={20}
+              required
+              autoComplete="username"
+              aria-label="Username"
+              className="brand-input auth-input"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="auth-input-group">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={regEmail}
+              onChange={e => {
+                setRegEmail(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              required
+              autoComplete="email"
+              aria-label="Email address"
+              className="brand-input auth-input"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="auth-input-group password-group">
+            <input
+              type={showRegPassword ? 'text' : 'password'}
+              placeholder="Password (minimum 6 characters)"
+              value={regPassword}
+              onChange={e => {
+                setRegPassword(e.target.value);
+                if (authError) setAuthError('');
+              }}
+              required
+              autoComplete="new-password"
+              minLength={6}
+              aria-label="Password"
+              className="brand-input auth-input"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              className="password-toggle-btn"
+              onClick={() => setShowRegPassword(p => !p)}
+              aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+              tabIndex={-1}
+            >
+              {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              fontSize: '16px',
+              borderRadius: '14px',
+              fontWeight: 700,
+              marginTop: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
+            }}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="spin" /> Creating Account…
+              </>
+            ) : (
+              'Create Account'
+            )}
+          </Button>
+
+          <div className="auth-bottom-switch">
+            <span>Already have an account?</span>{' '}
+            <button
+              type="button"
+              className="auth-link-btn"
+              onClick={() => handleTabChange('login')}
+            >
+              Sign In
+            </button>
+          </div>
         </form>
       )}
-
-      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', fontFamily: "'Manrope', sans-serif", color: 'var(--muted)' }}>
-        {authTab === 'login' ? (
-          <span>
-            No account?{' '}
-            <button type="button" className="auth-inline-action" onClick={() => onAuthTabChange('register')}>
-              Create one
-            </button>
-          </span>
-        ) : (
-          <span>
-            Already have an account?{' '}
-            <button type="button" className="auth-inline-action" onClick={() => onAuthTabChange('login')}>
-              Sign in
-            </button>
-          </span>
-        )}
-      </div>
     </div>
   );
 };

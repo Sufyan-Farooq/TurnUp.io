@@ -50,6 +50,9 @@ export interface UseRoomResult {
   castVote: (vote: boolean) => void;
   rematch: () => Promise<{ success: boolean; message?: string }>;
   changeGameType: (gameType: 'SNAKES_LADDERS' | 'LUDO' | 'UNO' | 'MONOPOLY') => Promise<{ success: boolean; message?: string }>;
+  /** Emits leave_room to the socket server so all peers see the player
+   *  instantly leave the lobby/match, then cleans up local room session. */
+  leaveRoom: () => Promise<void>;
   /** Clears the persisted {roomId, token} session and local room state.
    *  Does not reload the page — caller (App.tsx) still owns that. */
   leaveRoomSession: () => void;
@@ -433,6 +436,16 @@ export function useRoom(
     setVoteKickState(null);
   }, [socketService]);
 
+  const leaveRoom = useCallback(async () => {
+    if (socket?.connected) {
+      await new Promise<void>(resolve => {
+        socket.timeout(2000).emit('leave_room', () => resolve());
+        setTimeout(resolve, 500); // Safety fallback
+      });
+    }
+    leaveRoomSession();
+  }, [socket, leaveRoomSession]);
+
   return {
     room,
     players: room?.players ?? [],
@@ -453,6 +466,7 @@ export function useRoom(
     castVote,
     rematch,
     changeGameType,
+    leaveRoom,
     leaveRoomSession
   };
 }

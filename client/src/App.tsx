@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
 import { MessageCircle, PanelRightOpen, WifiOff, X } from 'lucide-react';
@@ -15,6 +15,16 @@ import type { GameState, Player, RoomActionResult } from './types/game';
 import { AuthPage, type AuthTab } from './pages/AuthPage';
 import { LandingPage } from './pages/LandingPage';
 import { GameTypeModal, RoomsModal, type RoomListItem, type SelectableGameType } from './pages/LobbyBrowserPage';
+import { ProfileModal } from './components/ProfileModal';
+import { TurnUpLogo } from './components/brand/TurnUpLogo';
+import { Footer } from './components/Footer';
+
+const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
+const RulesPage = lazy(() => import('./pages/RulesPage').then(m => ({ default: m.RulesPage })));
+const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const CookiePage = lazy(() => import('./pages/CookiePage').then(m => ({ default: m.CookiePage })));
 
 import { AppearancePicker } from './features/room/AppearancePicker';
 import { WaitingRoomSidebar } from './features/room/WaitingRoomSidebar';
@@ -132,6 +142,7 @@ export default function App() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [showGameTypeModal, setShowGameTypeModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedLobbyColor, setSelectedLobbyColor] = useState('');
   const [isAppearancePickerOpenManual, setIsAppearancePickerOpenManual] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -575,7 +586,7 @@ export default function App() {
     setUnreadChatCount(0);
     setRoomRailTab('chat');
     setChatSendError(null);
-    roomApi.leaveRoomSession();
+    void roomApi.leaveRoom();
     game.setGameState(null);
     seededGameIdRef.current = null;
     joinAttemptedRef.current = null;
@@ -593,7 +604,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    roomApi.leaveRoomSession();
+    void roomApi.leaveRoom();
     setIsLeftSidebarOpen(false);
     setUnreadChatCount(0);
     setRoomRailTab('chat');
@@ -661,36 +672,60 @@ export default function App() {
   // ── Landing / auth screen ───────────────────────────────────────────────
   const renderLanding = () => (
     <div className="landing-screen">
-      <div className="landing-screen__intro">
-        <span className="landing-screen__mark">turn<span>Up</span>.io</span>
-        <h1>Bring everyone<br />to the table.</h1>
-        <p>One room for familiar games, live turns, and the conversation that makes game night yours.</p>
-        <div className="landing-screen__game-list" aria-label="Available games">
-          <span>Ludo</span><span>UNO</span><span>Monopoly</span><span>Snakes &amp; Ladders</span>
+      <div className="landing-screen__hero">
+        <div className="landing-screen__intro">
+          <div style={{ marginBottom: '20px' }}>
+            <TurnUpLogo size="sm" variant="full" />
+          </div>
+          <h1>Bring everyone<br />to the table.</h1>
+          <p>One room for familiar games, live turns, and the conversation that makes game night yours.</p>
+          <div className="landing-screen__game-list" aria-label="Available games">
+            <span>Ludo</span><span>UNO</span><span>Monopoly</span><span>Snakes &amp; Ladders</span>
+          </div>
+          <div className="landing-screen__table" aria-hidden="true">
+            <span className="landing-screen__table-center" />
+            <span className="landing-screen__piece landing-screen__piece--one" />
+            <span className="landing-screen__piece landing-screen__piece--two" />
+            <span className="landing-screen__piece landing-screen__piece--three" />
+            <span className="landing-screen__piece landing-screen__piece--four" />
+          </div>
         </div>
-        <div className="landing-screen__table" aria-hidden="true">
-          <span className="landing-screen__table-center" />
-          <span className="landing-screen__piece landing-screen__piece--one" />
-          <span className="landing-screen__piece landing-screen__piece--two" />
-          <span className="landing-screen__piece landing-screen__piece--three" />
-          <span className="landing-screen__piece landing-screen__piece--four" />
-        </div>
+        <div className="landing-screen__entry">{currentUser ? (
+          <LandingPage
+            currentUser={currentUser}
+            isConnected={isConnected}
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            onPlayNow={() => void handlePlayNow()}
+            onBrowseRooms={() => setShowRoomsModal(true)}
+            onCreatePrivateGame={() => setShowGameTypeModal(true)}
+            onJoinRoom={() => void handleJoinByCode()}
+            onLogout={handleLogout}
+            onOpenProfile={() => setShowProfileModal(true)}
+          />
+        ) : (
+          <AuthPage
+            authTab={authTab}
+            onAuthTabChange={setAuthTab}
+            onAuthenticated={(token, user) => {
+              auth.applySession(token, user);
+            }}
+          />
+        )}</div>
       </div>
-      <div className="landing-screen__entry">{authTab === 'guest' && currentUser ? (
-        <LandingPage
-          currentUser={currentUser}
-          isConnected={isConnected}
-          joinCode={joinCode}
-          onJoinCodeChange={setJoinCode}
-          onPlayNow={() => void handlePlayNow()}
-          onBrowseRooms={() => setShowRoomsModal(true)}
-          onCreatePrivateGame={() => setShowGameTypeModal(true)}
-          onJoinRoom={() => void handleJoinByCode()}
-          onLogout={handleLogout}
-        />
-      ) : (
-        <AuthPage authTab={authTab} onAuthTabChange={setAuthTab} onAuthenticated={auth.applySession} />
-      )}</div>
+
+      <Footer />
+
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        currentUser={currentUser}
+        onOpenRegister={() => {
+          setShowProfileModal(false);
+          auth.logout();
+          setAuthTab('register');
+        }}
+      />
 
       <RoomsModal
         open={showRoomsModal}
@@ -907,10 +942,7 @@ export default function App() {
         <main className="game-main">
           <div className="hud-bar">
             <div className="hud-identity">
-              <span className="hud-brand">
-                <span className="turn">turn</span>
-                <span className="up">Up</span>
-              </span>
+              <TurnUpLogo size="sm" variant="full" showDomain={false} className="hud-brand-logo" onClick={() => navigate('/')} />
               <span className="hud-game-badge">{room.gameType.replace(/_/g, ' ')}</span>
               <button type="button" className="hud-room-code" onClick={handleCopyLink} aria-label={`Copy invite link for room ${room.id}`} title="Copy invite link">
                 Room {room.id} {copiedLink ? '· Copied' : '· Copy invite'}
@@ -1153,11 +1185,36 @@ export default function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/" element={renderLanding()} />
-      <Route path="/room/:roomId" element={renderRoomShell()} />
-      <Route path="/join/:roomId" element={renderRoomShell()} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: '100dvh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#0d1a24',
+            color: '#f0bc64',
+            fontFamily: "'Fredoka', sans-serif",
+            fontSize: '22px',
+          }}
+        >
+          Loading turnUp.io…
+        </div>
+      }
+    >
+      <Routes>
+        <Route path="/" element={renderLanding()} />
+        <Route path="/room/:roomId" element={renderRoomShell()} />
+        <Route path="/join/:roomId" element={renderRoomShell()} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/rules" element={<RulesPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/cookies" element={<CookiePage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

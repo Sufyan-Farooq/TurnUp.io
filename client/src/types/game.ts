@@ -102,7 +102,52 @@ export interface VoteKickState {
 export interface AuthUser {
   id: string;
   username: string;
+  email?: string;
   role: string;
+}
+
+export interface UserGameStat {
+  id: string;
+  gameType: GameType;
+  gamesPlayed: number;
+  gamesWon: number;
+  totalPoints: number;
+}
+
+export interface MatchHistoryItem {
+  matchId: string;
+  gameType: GameType;
+  rank: number | null;
+  score: number;
+  startedAt: string;
+  endedAt: string | null;
+  status: string;
+  isWinner: boolean;
+  winner: { id: string; username: string } | null;
+  opponents: Array<{
+    userId: string;
+    username: string;
+    rank: number | null;
+    score: number;
+  }>;
+}
+
+export interface UserProfileData {
+  user: {
+    id: string;
+    username: string;
+    email: string | null;
+    role: string;
+    createdAt: string;
+  };
+  stats: UserGameStat[];
+  aggregates: {
+    totalPlayed: number;
+    totalWon: number;
+    totalPoints: number;
+    winRate: number;
+  };
+  matchHistory: MatchHistoryItem[];
 }
 
 /** Result of a `create_room` / `join_room` socket ack callback. */
