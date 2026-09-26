@@ -41,10 +41,10 @@ export interface UnoRoomLike {
  */
 export interface UnoGameSpecificState {
   hands: Record<string, UnoCard[] | number>;
-  deck: UnoCard[] | number;
+  deck: UnoCard[] | number | undefined;
   discardPile: UnoCard[] | number;
-  currentCard: UnoCard;
-  currentColor: UnoColor;
+  currentCard: UnoCard | null;
+  currentColor: UnoColor | '';
   direction: 1 | -1;
   pendingDrawCount: number;
   unoDeclared: Record<string, boolean>;
@@ -61,7 +61,8 @@ export interface UnoGameStateLike {
   gameSpecificState: UnoGameSpecificState;
 }
 
-export const isCardPlayable = (card: UnoCard, currentCard: UnoCard, currentColor: string): boolean => {
+export const isCardPlayable = (card: UnoCard, currentCard: UnoCard | null, currentColor: string): boolean => {
+  if (!currentCard) return false;
   if (card.color === 'wild') return true;
   if (card.color === currentColor) return true;
   if (card.value === currentCard.value) return true;

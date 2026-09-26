@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Building2, Dice5, Layers, Route, Eye } from 'lucide-react';
 import { Modal, Button } from '../components/ui';
 
@@ -35,49 +35,55 @@ export interface RoomsModalProps {
  */
 export const RoomsModal: React.FC<RoomsModalProps> = ({ open, onClose, onJoinRoom }) => {
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadRooms = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/rooms`, { signal });
+      if (!response.ok) throw new Error('Room list unavailable.');
+      const data: unknown = await response.json();
+      if (!Array.isArray(data)) throw new Error('Room list unavailable.');
+      setRooms(data.filter((room): room is RoomListItem =>
+        typeof room === 'object' && room !== null && 'id' in room && 'status' in room && room.status !== 'ENDED'
+      ));
+    } catch (error) {
+      if (signal?.aborted) return;
+      console.error('Failed to fetch rooms:', error);
+      setRooms([]);
+      setLoadError('Could not load public rooms. Check your connection and try again.');
+    } finally {
+      if (!signal?.aborted) setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/rooms`);
-        const data = await response.json();
-        if (!cancelled) setRooms(data);
-      } catch (error) {
-        console.error('Failed to fetch rooms:', error);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [open]);
+    const controller = new AbortController();
+    void loadRooms(controller.signal);
+    return () => controller.abort();
+  }, [open, loadRooms]);
 
   return (
     <Modal open={open} onClose={onClose} title="Active Rooms" maxWidth="640px">
-      <div className="lobby-settings-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {rooms.length === 0 ? (
-          <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px 20px', fontFamily: "'Manrope', sans-serif", fontSize: '14px' }}>
-            No active game rooms. Create one to start playing!
+      <div className="public-room-list lobby-settings-scroll">
+        {isLoading ? (
+          <div className="public-room-list__state" role="status">Looking for open tables…</div>
+        ) : loadError ? (
+          <div className="public-room-list__state" role="alert">
+            <p>{loadError}</p>
+            <Button type="button" variant="secondary" onClick={() => void loadRooms()}>Try again</Button>
           </div>
+        ) : rooms.length === 0 ? (
+          <div className="public-room-list__state">No public rooms are open yet. You can create a private game or check back soon.</div>
         ) : (
           rooms.map(rm => (
-            <div
-              key={rm.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '16px 18px',
-                background: 'rgba(255, 255, 255, 0.025)',
-                border: '1px solid rgba(108, 60, 233, 0.15)',
-                borderRadius: '12px',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(108, 60, 233, 0.35)'; e.currentTarget.style.background = 'rgba(108, 60, 233, 0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(108, 60, 233, 0.15)'; e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
-            >
+            <div key={rm.id} className="public-room-row">
               <div>
-                <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: '16px', color: 'var(--cloud)', marginBottom: '4px' }}>{rm.name}</div>
-                <div style={{ display: 'flex', gap: '10px', fontSize: '12px', color: 'var(--muted)', fontFamily: "'Space Mono', monospace" }}>
+                <div className="public-room-row__name">{rm.name}</div>
+                <div className="public-room-row__meta">
                   <span>{rm.gameType.replace(/_/g, ' ')}</span>
                   <span style={{ opacity: 0.4 }}>·</span>
                   <span style={{ color: 'var(--cloud-dim)' }}>{rm.playersCount} / {rm.maxPlayers} players</span>
@@ -142,9 +148,10 @@ export interface GameTypeModalProps {
 export const GameTypeModal: React.FC<GameTypeModalProps> = ({ open, onClose, onSelectGameType }) => {
   return (
     <Modal open={open} onClose={onClose} title="Choose Game Type" maxWidth="640px">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+      <div className="game-type-grid">
         {GAME_TYPE_OPTIONS.map(gm => (
-          <div
+          <button
+            type="button"
             key={gm.type}
             className="game-card"
             onClick={() => onSelectGameType(gm.type)}
@@ -153,7 +160,7 @@ export const GameTypeModal: React.FC<GameTypeModalProps> = ({ open, onClose, onS
             <span className="game-card-icon">{gm.icon}</span>
             <h3 className="game-card-title">{gm.name}</h3>
             <p className="game-card-desc">{gm.desc}</p>
-          </div>
+          </button>
         ))}
       </div>
     </Modal>

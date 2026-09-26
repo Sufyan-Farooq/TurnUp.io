@@ -45,7 +45,7 @@ export interface UseRoomResult {
   toggleReady: () => Promise<{ success: boolean; ready?: boolean }>;
   updateLobbySettings: (settings: LobbySettingsPatch) => boolean;
   selectAppearance: (color: string) => Promise<{ success: boolean }>;
-  sendChat: (text: string) => void;
+  sendChat: (text: string) => Promise<{ success: boolean; message?: string }>;
   initiateVoteKick: (targetPlayerId: string) => void;
   castVote: (vote: boolean) => void;
   rematch: () => Promise<{ success: boolean; message?: string }>;
@@ -379,10 +379,16 @@ export function useRoom(
   );
 
   const sendChat = useCallback(
-    (text: string) => {
-      if (!socket || !text.trim()) return;
-      socket.emit('send_chat_message', { text: text.trim() });
-    },
+    (text: string) => new Promise<{ success: boolean; message?: string }>(resolve => {
+      const trimmed = text.trim();
+      if (!socket?.connected) return resolve({ success: false, message: 'Reconnect to send your message.' });
+      if (!trimmed || trimmed.length > 500) return resolve({ success: false, message: 'Message must be between 1 and 500 characters.' });
+      socket.timeout(6000).emit('send_chat_message', { text: trimmed },
+        (error: Error | null, response?: { success: boolean; message?: string }) => {
+          if (error) resolve({ success: false, message: 'Message not confirmed. Check the chat before retrying.' });
+          else resolve(response ?? { success: false, message: 'Message not confirmed. Please try again.' });
+        });
+    }),
     [socket]
   );
 

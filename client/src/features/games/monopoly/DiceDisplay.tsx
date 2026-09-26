@@ -5,7 +5,7 @@ import './monopoly.css';
 const DICE_ICONS: LucideIcon[] = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
 
 export interface DiceDisplayProps {
-  value: number; // 1-6
+  value: number; // 1-6; 0 means no roll has happened yet
   size?: number;
   rolling?: boolean;
   onClick?: () => void;
@@ -13,8 +13,8 @@ export interface DiceDisplayProps {
 
 /** Single die face, rendered with lucide-react icons instead of a 3D CSS cube / emoji. */
 export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, rolling = false, onClick }) => {
-  const clamped = Math.min(6, Math.max(1, value || 1));
-  const Icon = DICE_ICONS[clamped - 1];
+  const face = Number.isInteger(value) && value >= 1 && value <= 6 ? value : null;
+  const Icon = face ? DICE_ICONS[face - 1] : null;
   const dieRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef<Animation | null>(null);
   const wasRollingRef = useRef(false);
@@ -65,7 +65,7 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
       }}
       role={onClick ? 'button' : 'img'}
       tabIndex={onClick ? 0 : -1}
-      aria-label={rolling ? 'Dice rolling' : onClick ? `Roll dice, currently showing ${clamped}` : `Dice showing ${clamped}`}
+      aria-label={rolling ? 'Dice rolling' : onClick ? face ? `Roll dice, last showing ${face}` : 'Roll dice' : face ? `Dice showing ${face}` : 'Die waiting for a roll'}
       style={{
         width: size,
         height: size,
@@ -81,7 +81,7 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({ value, size = 48, roll
         transform: 'none'
       }}
     >
-      <Icon key={clamped} size={size * 0.7} strokeWidth={1.75} />
+      {Icon && <Icon key={face} size={size * 0.7} strokeWidth={1.75} />}
     </div>
   );
 };
@@ -97,7 +97,7 @@ export function useRollAnimation(
   durationMs = 720
 ) {
   const [isRolling, setIsRolling] = useState(false);
-  const [diceValues, setDiceValues] = useState<[number, number]>(finalRoll?.[0] ? finalRoll : [3, 4]);
+  const [diceValues, setDiceValues] = useState<[number, number]>(finalRoll?.[0] ? finalRoll : [0, 0]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rollingRef = useRef(false);
   const startedAtRef = useRef(0);

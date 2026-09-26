@@ -1,6 +1,7 @@
 import React from 'react';
 import { BoardWrapper } from '../../../components/BoardWrapper';
 import type { GameRoom, BaseGameState } from '../types';
+import { getSerpentineCoordinates, getSnakesTokenSlot } from './boardGeometry';
 import './snakes-ladders.css';
 
 export interface SnakesLaddersGameSpecificState {
@@ -20,29 +21,26 @@ export interface SnakesLaddersBoardProps {
   room: GameRoom | null;
 }
 
-/**
- * Serpentine coordinates lookup (reversing standard layout), extracted
- * verbatim from App.tsx's `getSerpentineCoordinates`.
- */
-export const getSerpentineCoordinates = (cellNum: number) => {
-  const index = cellNum - 1;
-  const row = Math.floor(index / 10);
-  const colRemainder = index % 10;
-  const col = (row % 2 === 1) ? (9 - colRemainder) : colRemainder;
-
-  // Grid alignment: x-offset left, y-offset top
-  const cellSize = 100; // grid logic size
-  const x = col * cellSize + 50;
-  const y = (9 - row) * cellSize + 50;
-
-  return { x, y };
-};
+const TOKEN_COLORS = ['#ff5c66', '#4e8cff', '#3fbf7f', '#ffc247', '#a782ff', '#ff9b54', '#51c8d4', '#f777b5'];
 
 /**
  * Snakes & Ladders board: 10x10 serpentine grid with SVG routes, board
  * landmarks, and player tokens. Gameplay state remains entirely prop-driven.
  */
 export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameState, room }) => {
+  const positions = gameState.gameSpecificState.positions || {};
+  const snakes = gameState.gameSpecificState.snakes || {};
+  const ladders = gameState.gameSpecificState.ladders || {};
+  const playerOrder = new Map(room?.players?.map((player, index) => [player.id, index]) || []);
+  const tokenPlayers = Object.entries(positions)
+    .filter(([, pos]) => Number.isInteger(pos) && pos >= 1 && pos <= 100)
+    .sort(([a], [b]) => (playerOrder.get(a) ?? Infinity) - (playerOrder.get(b) ?? Infinity));
+  const playersByCell = new Map<number, string[]>();
+  tokenPlayers.forEach(([pId, pos]) => {
+    const cellPlayers = playersByCell.get(pos) || [];
+    cellPlayers.push(pId);
+    playersByCell.set(pos, cellPlayers);
+  });
   // Helper to render realistic, detailed snake body
   const renderSnake = (head: number, tail: number, snakeIdx: number) => {
     const p1 = getSerpentineCoordinates(head);
@@ -221,35 +219,35 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
         <svg className="sl-board-routes" viewBox="0 0 1000 1000" aria-hidden="true">
           <defs>
             <linearGradient id="snake-grad-0" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#d90429" />
-              <stop offset="100%" stopColor="#5c000b" />
+              <stop offset="0%" stopColor="#bb6755" />
+              <stop offset="100%" stopColor="#7d2f32" />
             </linearGradient>
             <linearGradient id="snake-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38b000" />
-              <stop offset="100%" stopColor="#004b23" />
+              <stop offset="0%" stopColor="#619c75" />
+              <stop offset="100%" stopColor="#2c624e" />
             </linearGradient>
             <linearGradient id="snake-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ff7000" />
-              <stop offset="100%" stopColor="#9a1f00" />
+              <stop offset="0%" stopColor="#cf9455" />
+              <stop offset="100%" stopColor="#92522e" />
             </linearGradient>
             <linearGradient id="ladder-rail-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#ffb703" />
-              <stop offset="50%" stopColor="#ffd166" />
-              <stop offset="100%" stopColor="#fb8500" />
+              <stop offset="0%" stopColor="#a86b2d" />
+              <stop offset="50%" stopColor="#e8bd71" />
+              <stop offset="100%" stopColor="#995c24" />
             </linearGradient>
             <linearGradient id="ladder-rung-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#ffb703" />
-              <stop offset="100%" stopColor="#fb8500" />
+              <stop offset="0%" stopColor="#e8bd71" />
+              <stop offset="100%" stopColor="#a86b2d" />
             </linearGradient>
           </defs>
 
           {/* Render Ladders */}
-          {Object.entries(gameState.gameSpecificState.ladders || {}).map(([baseStr, top], idx) =>
+          {Object.entries(ladders).map(([baseStr, top], idx) =>
             renderLadder(parseInt(baseStr, 10), top, idx)
           )}
 
           {/* Render Snakes */}
-          {Object.entries(gameState.gameSpecificState.snakes || {}).map(([headStr, tail], idx) =>
+          {Object.entries(snakes).map(([headStr, tail], idx) =>
             renderSnake(parseInt(headStr, 10), tail, idx)
           )}
         </svg>
@@ -264,10 +262,10 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
             : (serpentineRow * 10 + (9 - c) + 1);
 
           const cellColorIndex = (r + c) % 4;
-          const ladderTop = Object.values(gameState.gameSpecificState.ladders || {}).includes(num);
-          const ladderBase = Object.prototype.hasOwnProperty.call(gameState.gameSpecificState.ladders || {}, num);
-          const snakeTail = Object.values(gameState.gameSpecificState.snakes || {}).includes(num);
-          const snakeHead = Object.prototype.hasOwnProperty.call(gameState.gameSpecificState.snakes || {}, num);
+          const ladderTop = Object.values(ladders).includes(num);
+          const ladderBase = Object.prototype.hasOwnProperty.call(ladders, num);
+          const snakeTail = Object.values(snakes).includes(num);
+          const snakeHead = Object.prototype.hasOwnProperty.call(snakes, num);
           const markerClass = [
             ladderBase && 'is-ladder-base',
             ladderTop && 'is-ladder-top',
@@ -277,8 +275,14 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
             num === 100 && 'is-finish'
           ].filter(Boolean).join(' ');
           return (
-            <div key={num} className={`sl-cell cell-color-${cellColorIndex} ${markerClass}`}>
+            <div
+              key={num}
+              className={`sl-cell cell-color-${cellColorIndex} ${markerClass}`}
+              aria-label={`Square ${num}${ladderBase ? `, ladder to ${ladders[num]}` : ''}${snakeHead ? `, snake to ${snakes[num]}` : ''}${num === 1 ? ', start' : ''}${num === 100 ? ', finish' : ''}`}
+            >
               <span className="sl-cell-num">{num}</span>
+              {ladderBase && <span className="sl-cell-route is-ladder">To {ladders[num]}</span>}
+              {snakeHead && <span className="sl-cell-route is-snake">To {snakes[num]}</span>}
               {num === 1 && <span className="sl-cell-landmark">Start</span>}
               {num === 100 && <span className="sl-cell-landmark">Finish</span>}
             </div>
@@ -286,27 +290,27 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
         })}
 
         {/* Render Players' Tokens */}
-        {Object.entries(gameState.gameSpecificState.positions || {}).map(([pId, pos], idx) => {
+        {tokenPlayers.map(([pId, pos], idx) => {
           const { x, y } = getSerpentineCoordinates(pos);
-          const offsetSize = 12;
-          const xOffset = (idx % 2 === 0 ? -1 : 1) * offsetSize;
-          const yOffset = (idx >= 2 ? 1 : -1) * offsetSize;
+          const sharingCell = playersByCell.get(pos) || [];
+          const slot = getSnakesTokenSlot(sharingCell.indexOf(pId), sharingCell.length);
 
           const playerObj = room?.players?.find(p => p.id === pId);
-          const customColor = playerObj?.color;
+          const customColor = playerObj?.color?.match(/#(?:[0-9a-fA-F]{3}){1,2}\b/)?.[0] || TOKEN_COLORS[idx % TOKEN_COLORS.length];
 
           return (
             <div
               key={pId}
-              className={`player-token ${customColor ? '' : `token-${idx}`} ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
+              className={`player-token ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
               role="img"
               aria-label={`${playerObj?.name ?? `Player ${idx + 1}`} on square ${pos}${pId === gameState.activePlayerId ? ', active player' : ''}`}
               style={{
-                left: `${x - 16 + xOffset}px`,
-                top: `${y - 16 + yOffset}px`,
+                left: `${x + slot.x}px`,
+                top: `${y + slot.y}px`,
+                width: `${slot.size}px`,
+                height: `${slot.size}px`,
                 zIndex: 10 + idx,
-                backgroundColor: customColor || undefined,
-                boxShadow: customColor ? `0 0 10px ${customColor}` : undefined
+                backgroundColor: customColor
               }}
               title={`${playerObj?.name ?? `Player ${idx + 1}`} — square ${pos}`}
             >

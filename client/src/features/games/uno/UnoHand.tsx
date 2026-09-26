@@ -28,6 +28,8 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
   const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
 
   const hand = getOwnHand(gameState, currentUserId);
+  const handIsAvailable = Array.isArray(gameState.gameSpecificState.hands?.[currentUserId]);
+  const handSignature = hand.map(card => `${card.color}:${card.value}`).join('|');
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const rules = gameState.gameSpecificState.rules || { cardStacking: true, cardDoubles: true };
   const pendingDraw = gameState.gameSpecificState.pendingDrawCount || 0;
@@ -54,7 +56,7 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
 
   useEffect(() => {
     setSelectedCardIndices([]);
-  }, [gameState.activePlayerId, gameState.subState, hand.length]);
+  }, [gameState.activePlayerId, gameState.subState, handSignature]);
 
   return (
     <div className="uno-hand-wrap">
@@ -91,6 +93,7 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
 
       <div className="uno-hand-row" role="group" aria-label="Your UNO cards">
         {isPreview && <span className="uno-hand-empty">Your cards will appear here.</span>}
+        {!isPreview && hand.length === 0 && <span className="uno-hand-empty">{handIsAvailable ? 'No cards in your hand. Waiting for the table to resolve the result.' : 'Syncing your hand…'}</span>}
         {hand.map((card, idx) => {
           const isDrawnCard = idx === hand.length - 1;
           const isSelected = selectedCardIndices.includes(idx);

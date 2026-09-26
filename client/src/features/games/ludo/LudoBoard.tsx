@@ -4,6 +4,7 @@ import type { GameRoom, BaseGameState } from '../types';
 import { getPlayerColorPalette, getLudoColorName } from '../../../theme/playerColors';
 import { getSixLudoCoords } from './sixPlayerGeometry';
 import { SixPlayerBoardSurface } from './SixPlayerBoardSurface';
+import { getTokenDestination, getTokenStackOffset } from './tokenPlacement';
 import './ludo.css';
 
 export interface LudoGameSpecificState {
@@ -126,18 +127,7 @@ export const isTokenMoveValid = (
   pos: number,
   roll: number
 ): boolean => {
-  const maxPos = trackLength + 5;
-  if (pos === maxPos) return false; // Already home
-  if (pos === -1) return roll === 6; // Requires a 6 to release from base
-  if (pos >= 0 && pos <= (trackLength - 1)) {
-    const startCell = playerIdx * 13;
-    const stepsTaken = (pos - startCell + trackLength) % trackLength;
-    return (stepsTaken + roll) <= maxPos;
-  }
-  if (pos >= trackLength && pos <= (trackLength + 4)) {
-    return (pos + roll) <= maxPos;
-  }
-  return false;
+  return getTokenDestination(trackLength, playerIdx, pos, roll) !== null;
 };
 
 /**
@@ -146,10 +136,8 @@ export const isTokenMoveValid = (
  * pending). The board keeps socket/gameplay concerns outside this component;
  * moves are sent through `onMoveToken` and validated by the server.
  *
- * NOTE: there is no safe-zone capture protection in the server ruleset
- * (server/src/engine/ludo.ts) — the `.path-safe` star markers are purely
- * decorative here, matching the original; landing on them does not block
- * captures.
+ * The server ruleset currently has no safe-zone capture protection, so the
+ * board deliberately avoids marking cells as safe.
  */
 export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUserId, onMoveToken }) => {
   // Match state is authoritative once play begins; lobby settings can lag after
@@ -180,9 +168,6 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
         else if (r === 1 && c === 8) cellClass = 'ludo-cell path-green start-cell';
         else if (r === 8 && c === 13) cellClass = 'ludo-cell path-yellow start-cell';
         else if (r === 13 && c === 6) cellClass = 'ludo-cell path-blue start-cell';
-        else if ((r === 2 && c === 6) || (r === 6 && c === 12) || (r === 12 && c === 8) || (r === 8 && c === 2)) {
-          cellClass = 'ludo-cell path-safe';
-        }
 
         ludoCells.push(
           <div
@@ -208,6 +193,18 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
       ludoSharedCoords[key].push({ pId, tIdx });
     });
   });
+
+  const moveTargets = new Map<string, { x: number; y: number }>();
+  if (isMyTurn && gameState.subState === 'WAITING_FOR_TOKEN_MOVE') {
+    const positions = gameState.gameSpecificState.tokens?.[currentUserId] || [];
+    const playerIdx = getPlayerBaseIndex(room, gameState, currentUserId);
+    positions.forEach((pos, tokenIdx) => {
+      const destination = getTokenDestination(trackLength, playerIdx, pos, gameState.gameSpecificState.lastRoll);
+      if (destination === null) return;
+      const coords = getLudoCoords(room, playerIdx, destination, tokenIdx, maxPlayers);
+      moveTargets.set(`${coords.x.toFixed(1)},${coords.y.toFixed(1)}`, coords);
+    });
+  }
 
   return (
     <BoardWrapper virtualWidth={1000} virtualHeight={1000}>
@@ -265,7 +262,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
             }} />
             <div style={{
               position: 'absolute', top: '15%', left: '15%', width: '70%', height: '70%',
-              backgroundColor: '#0d061f', borderRadius: '50%', border: '2px solid var(--accent-purple)',
+              backgroundColor: '#0a2031', borderRadius: '50%', border: '2px solid #d3b587',
               display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '13px', color: '#fff', gap: '2px'
             }}>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>HOME</span>
@@ -278,6 +275,11 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
         {/* Render track cells */}
         {ludoCells}
         </>}
+
+        {/* Legal destinations are derived from the authoritative move formula. */}
+        {[...moveTargets.entries()].map(([key, coords]) => (
+          <div key={`target-${key}`} className="ludo-move-target" style={{ left: coords.x, top: coords.y }} aria-hidden="true" />
+        ))}
 
         {/* Render Tokens */}
         {Object.entries(gameState.gameSpecificState.tokens || {}).map(([pId, tokenPositions]) => {
@@ -292,13 +294,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
             const count = shared.length;
             const indexInCell = shared.findIndex(t => t.pId === pId && t.tIdx === tIdx);
 
-            let ox = 0, oy = 0;
-            if (count > 1) {
-              const angle = (indexInCell / count) * 2 * Math.PI;
-              const radius = 12;
-              ox = Math.cos(angle) * radius;
-              oy = Math.sin(angle) * radius;
-            }
+            const { x: ox, y: oy } = getTokenStackOffset(indexInCell, count);
 
             const isInteractive = isMyTurn
               && (gameState.subState === 'WAITING_FOR_TOKEN_MOVE')
@@ -309,7 +305,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
             return (
               <div
                 key={`${pId}-${tIdx}`}
-                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${pId === currentUserId ? 'is-mine' : ''} ${pos === trackLength + 5 ? 'is-home' : ''}`}
+                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''} ${count > 1 ? 'is-stacked' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${pId === currentUserId ? 'is-mine' : ''} ${pos === trackLength + 5 ? 'is-home' : ''}`}
                 role={isInteractive ? 'button' : 'img'}
                 tabIndex={isInteractive ? 0 : -1}
                 aria-label={`${playerObj.name}'s token ${tIdx + 1}${pos === -1 ? ' in base' : pos === trackLength + 5 ? ' at home' : ` on space ${pos + 1}`}${isInteractive ? ', move this token' : ''}`}

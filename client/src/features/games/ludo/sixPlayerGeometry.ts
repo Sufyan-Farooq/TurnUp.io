@@ -1,5 +1,9 @@
 // All six-player art and pawns use the same 1000px coordinate system. The
-// engine's seat N starts on track cell N * 13, then enters its own home lane.
+// engine's seat N starts on track cell N * 13. Each 13-cell sector crosses
+// one three-cell-wide arm: its outer center start, six cells toward the
+// middle, and six cells outward along the next arm. Home lanes occupy the
+// empty center column of the clockwise arm. Keep these coordinates shared
+// by the board cells and pawns; changing one without the other breaks play.
 export const SIX_SEAT_ANGLES = [-150, -90, -30, 30, 90, 150] as const;
 export const SIX_BASE_SLOT_OFFSETS = [
   { x: -29, y: -29 }, { x: 29, y: -29 },
@@ -16,17 +20,21 @@ export function sixBaseCenter(seat: number) {
 }
 
 export function sixTrackCenter(position: number) {
-  const arm = Math.floor(position / 13);
-  const step = position % 13;
+  const normalized = ((position % 78) + 78) % 78;
+  const arm = Math.floor(normalized / 13);
+  const step = normalized % 13;
   const angle = SIX_SEAT_ANGLES[arm] ?? SIX_SEAT_ANGLES[0];
-  if (step === 0) return sixPolar(angle, 420);
-  if (step === 6 || step === 7) return sixPolar(angle + (step === 6 ? 15 : 45), 125);
-  const armAngle = step < 6 ? angle : angle + 60;
-  const radians = armAngle * Math.PI / 180;
-  const tangent = step < 6 ? -52 : 52;
-  const radius = step < 6 ? 385 - (step - 1) * 60 : 145 + (step - 8) * 60;
-  const center = sixPolar(armAngle, radius);
-  return { x: center.x - Math.sin(radians) * tangent, y: center.y + Math.cos(radians) * tangent };
+  if (step === 0) return sixPolar(angle, 415);
+
+  const trackAngle = step <= 6 ? angle : angle + 60;
+  const radius = step <= 6 ? 415 - (step - 1) * 55 : 140 + (step - 7) * 55;
+  const tangent = step <= 6 ? 44 : -44;
+  const radians = trackAngle * Math.PI / 180;
+  const center = sixPolar(trackAngle, radius);
+  return {
+    x: center.x - Math.sin(radians) * tangent,
+    y: center.y + Math.cos(radians) * tangent,
+  };
 }
 
 export function getSixLudoCoords(seat: number, position: number, token: number) {
@@ -40,7 +48,7 @@ export function getSixLudoCoords(seat: number, position: number, token: number) 
     return sixTrackCenter(position);
   }
   if (position >= 78 && position < 83) {
-    return sixPolar(angle, 350 - (position - 78) * 50);
+    return sixPolar(angle + 60, 360 - (position - 78) * 55);
   }
-  return sixPolar(angle, 66);
+  return sixPolar(angle + 60, 76);
 }

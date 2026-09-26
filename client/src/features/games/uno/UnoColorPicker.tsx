@@ -72,7 +72,6 @@ export const UnoColorPicker: React.FC<UnoColorPickerProps> = ({ isOpen, onSelect
   return (
     <div className="color-picker-overlay uno-color-picker-overlay" role="presentation">
       <div ref={dialogRef} className="color-picker-modal uno-color-picker" role="dialog" aria-modal="true" aria-labelledby="uno-color-picker-title" aria-describedby="uno-color-picker-description">
-        <span className="uno-color-picker-kicker">Wild card</span>
         <h2 id="uno-color-picker-title">Choose the next color</h2>
         <p id="uno-color-picker-description">
           This color stays active until another card changes it.

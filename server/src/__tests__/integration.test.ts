@@ -269,4 +269,28 @@ describe('Full room -> game flow (socket.io integration)', () => {
     expect(hostState.rules).toEqual({ cardStacking: false, cardDoubles: false });
     expect(guestState.rules).toEqual({ cardStacking: false, cardDoubles: false });
   }, 15000);
+
+  it('confirms room chat delivery and keeps invalid messages out of the room', async () => {
+    const hostToken = generateToken({ id: 'chat-host', username: 'ChatHost', role: 'USER' });
+    const guestToken = generateToken({ id: 'chat-guest', username: 'ChatGuest', role: 'USER' });
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect')]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Chat Test', token: hostToken, gameType: 'LUDO'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+
+    const received = waitForEvent<any>(guestClient, 'chat_message');
+    const delivered = await emitWithAck<{ success: boolean }>(hostClient, 'send_chat_message', { text: '  Ready to play?  ' });
+    expect(delivered.success).toBe(true);
+    expect(await received).toEqual(expect.objectContaining({
+      playerId: 'chat-host', senderName: 'ChatHost', text: 'Ready to play?'
+    }));
+
+    const rejected = await emitWithAck<{ success: boolean; message: string }>(hostClient, 'send_chat_message', { text: 'x'.repeat(501) });
+    expect(rejected.success).toBe(false);
+    expect(rejected.message).toMatch(/500/);
+  }, 15000);
 });

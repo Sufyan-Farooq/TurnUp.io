@@ -971,22 +971,38 @@ io.on('connection', (socket: Socket) => {
   });
 
   // 7. Handle Room Chat Messages
-  socket.on('send_chat_message', (data: { text: string }) => {
+  socket.on('send_chat_message', (data: { text: string }, callback?: (result: { success: boolean; message?: string }) => void) => {
     const { playerId, roomId } = socket.data;
-    if (!playerId || !roomId || !data.text || !data.text.trim()) return;
+    const text = typeof data?.text === 'string' ? data.text.trim() : '';
+    if (!playerId || !roomId) {
+      callback?.({ success: false, message: 'Join a room before sending a message.' });
+      return;
+    }
+    if (!text || text.length > 500) {
+      callback?.({ success: false, message: 'Message must be between 1 and 500 characters.' });
+      return;
+    }
 
     const room = rooms[roomId];
-    if (!room) return;
+    if (!room) {
+      callback?.({ success: false, message: 'This room is no longer available.' });
+      return;
+    }
 
-    const player = room.players.find(p => p.id === playerId);
-    if (!player) return;
+    const player = room.players.find(p => p.id === playerId)
+      ?? room.spectators?.find(p => p.id === playerId);
+    if (!player) {
+      callback?.({ success: false, message: 'You are no longer in this room.' });
+      return;
+    }
 
     io.to(roomId).emit('chat_message', {
       playerId,
       senderName: player.name,
-      text: data.text.trim(),
+      text,
       timestamp: Date.now()
     });
+    callback?.({ success: true });
   });
 
   // 9. Handle Appearance Color Selection

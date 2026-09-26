@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link2, Copy, Check, MessageSquare, Send, X, MessageCircle } from 'lucide-react';
 import type { ChatMessage } from './types';
 
@@ -20,6 +20,10 @@ export interface LeftSidebarProps {
   onCopyLink: () => void;
   /** Ref to an empty div at the bottom of the message list for auto-scroll-into-view. */
   chatEndRef?: React.RefObject<HTMLDivElement | null>;
+  placement?: 'rail' | 'mobile';
+  isConnected?: boolean;
+  isSending?: boolean;
+  sendError?: string | null;
 }
 
 /**
@@ -40,13 +44,48 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   copiedLink,
   onCopyLink,
   chatEndRef,
+  placement = 'mobile',
+  isConnected = true,
+  isSending = false,
+  sendError = null,
 }) => {
   const shareUrl = `${window.location.origin}/join/${roomId}`;
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (placement !== 'mobile' || !isOpen) return;
+    inputRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.chat-toggle-btn')?.focus());
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href]') ?? []);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, placement, onClose]);
 
   return (
-    <div className={`left-sidebar ${isOpen ? 'open' : ''}`}>
+    <div
+      ref={drawerRef}
+      className={`left-sidebar left-sidebar--${placement} ${isOpen ? 'open' : ''}`}
+      role={placement === 'mobile' ? 'dialog' : 'region'}
+      aria-label="Room chat"
+      aria-modal={placement === 'mobile' && isOpen ? true : undefined}
+      aria-hidden={placement === 'mobile' && !isOpen ? true : undefined}
+      inert={placement === 'mobile' && !isOpen}
+    >
       {/* Share Section */}
-      <div className="share-section">
+      {placement === 'mobile' && <div className="share-section">
         <h4 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Link2 size={14} /> Share this game
         </h4>
@@ -64,27 +103,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             )}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Chat Section */}
       <div className="chat-section">
         <div className="chat-header">
           <MessageSquare size={16} />
-          Chat
+          Room chat
           <button
             onClick={onClose}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: '18px',
-              display: 'none',
-              padding: '4px',
-              lineHeight: 1,
-            }}
             className="sidebar-close-btn"
+            type="button"
+            aria-label="Close room chat"
           >
             <X size={16} />
           </button>
@@ -93,12 +123,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <div className="chat-messages">
           {chatMessages.length === 0 ? (
             <div className="chat-empty">
-              <MessageCircle size={14} /> No messages yet
+              <MessageCircle size={14} /> No messages yet. Say hello to the room.
             </div>
           ) : (
             chatMessages.map((msg, idx) => (
               <div key={idx} className={`chat-bubble ${msg.playerId === currentPlayerId ? 'self' : ''}`}>
-                <span className="chat-sender">{msg.playerId === currentPlayerId ? 'You' : msg.senderName}</span>
+                <span className="chat-sender">{msg.playerId === currentPlayerId ? 'You' : msg.senderName} · {new Date(msg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
                 <span className="chat-text">{msg.text}</span>
               </div>
             ))
@@ -106,17 +136,23 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <div ref={chatEndRef} />
         </div>
 
+        {sendError && <div className="chat-send-error" role="alert">{sendError}</div>}
+        {!isConnected && <div className="chat-connection-note" role="status">Reconnecting… messages will be available when you’re back online.</div>}
         <div className="chat-input-row">
           <input
+            ref={inputRef}
             type="text"
-            placeholder="Say something..."
+            placeholder={isConnected ? 'Message the room…' : 'Reconnect to chat'}
             value={chatInput}
+            maxLength={500}
+            disabled={!isConnected || isSending}
+            aria-label="Message the room"
             onChange={(e) => onChatInputChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onSendChat();
             }}
           />
-          <button onClick={onSendChat} aria-label="Send message">
+          <button onClick={onSendChat} aria-label={isSending ? 'Sending message' : 'Send message'} disabled={!isConnected || isSending || !chatInput.trim()}>
             <Send size={18} />
           </button>
         </div>

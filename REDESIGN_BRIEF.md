@@ -1,6 +1,6 @@
 # TurnUp.io — Full redesign brief (proposed)
 
-Status: visual direction confirmed by user delegation on 2026-09-26. This is a design brief, not an implementation or a rules change.
+Status: visual direction confirmed by user delegation on 2026-09-26. The Game Kit implementation follows this brief; this document is not a game-rules change.
 
 ## Job, audience, outcome
 
@@ -12,7 +12,7 @@ The product-specific strength is one live room system for four different games. 
 
 Each game is a distinct, mathematically correct playfield seated in one recognizable TurnUp kit. The first viewport of a live match is a large, centered board. A stable, narrow perimeter carries player identity, turn status, the next action, connection state, chat access, and a compact event ledger. Materials evoke a contemporary tabletop kit—quiet felt-like field, precise printed labels, tactile pieces—but never displace playable area. Motion explains events rather than decorates them: a die settles on its actual result, a pawn travels cell-by-cell, a card lands in the correct pile, and an UNO reverse visibly changes the direction indicator.
 
-The visual direction establishes hierarchy and material, **not** valid Ludo path geometry, exact player colors, or production copy. Those must come from tested game-state geometry and real UI content. The [Richup.io](https://richup.io/) reference informs board prominence and low-friction entry, not copied branding, layout, or assets.
+The approved room composition is `.impeccable/mocks/room-approved.png`: a large board field, a stable player/action rail, and visible room chat that never covers the board. The user delegated composition choice and authorized implementation. The image establishes hierarchy and material, **not** valid Ludo path geometry, exact player colors, chat data, or production copy. Those must come from tested game-state geometry and real UI content. Its decorative copy and avatar photos are not required; the placement and proportions are. The [Richup.io](https://richup.io/) reference informs board prominence and low-friction entry, not copied branding, layout, or assets.
 
 ## Experience map
 

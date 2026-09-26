@@ -33,7 +33,6 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
   return (
     <aside className="monopoly-sidebar" aria-label="Monopoly players and property portfolio">
       <header className="monopoly-sidebar-section">
-        <p className="monopoly-section-kicker">Live standings</p>
         <h3 className="monopoly-section-title">Players &amp; balances</h3>
       </header>
       <div className="monopoly-player-list">
@@ -75,7 +74,6 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
       </div>
 
       <header className="monopoly-sidebar-section">
-        <p className="monopoly-section-kicker">Your portfolio</p>
         <h3 className="monopoly-section-title">Properties · {myOwnedProperties.length}</h3>
       </header>
       <div className="monopoly-property-list">

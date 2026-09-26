@@ -50,18 +50,14 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
   const isHost = room.hostId === currentPlayerId;
 
   return (
-    <div className="victory-overlay">
+    <div className="victory-overlay" role="region" aria-label="Match results">
       <div
         className="glass-panel victory-card animate-victory-modal"
-        style={{
-          border: '1.5px solid rgba(108, 60, 233, 0.4)',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.65), 0 0 50px rgba(108, 60, 233, 0.25)',
-        }}
       >
         <h1 className="victory-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
           <Trophy /> Victory!
         </h1>
-        <p className="victory-subtitle">Match over — here are the final standings:</p>
+        <p className="victory-subtitle">Final standings are in. Room chat stays open while you plan what’s next.</p>
 
         {/* Standings list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '32px', textAlign: 'left' }}>

@@ -4,6 +4,7 @@ import { MONOPOLY_BOARD, colorGroupMap, getMonopolySpaceGridCoords, getMonopolyC
 import { PropertyDetailModal } from './PropertyDetailModal';
 import { AuctionOverlay } from './AuctionOverlay';
 import { DiceDisplay, useRollAnimation } from './DiceDisplay';
+import { getMonopolyTokenSlot } from './tokenGeometry';
 import type { MonopolyGameState, MonopolyRoom } from './types';
 import './monopoly.css';
 
@@ -35,6 +36,8 @@ const getSolidColor = (c: string, fallback: string): string => {
   }
   return c;
 };
+
+const TOKEN_COLORS = ['#ff5c66', '#4e8cff', '#3fbf7f', '#ffc247', '#a782ff', '#ff9b54', '#51c8d4', '#f777b5'];
 
 /**
  * The 48-space Monopoly board: grid of spaces + player tokens + the center
@@ -78,13 +81,14 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   const activePlayerName = activePlayer ? activePlayer.name : 'Unknown';
 
   // Precompute shared-cell token offsets (multiple players on the same space).
-  const sharedCoords: Record<string, { pId: string }[]> = {};
-  Object.entries(positions).forEach(([pId, pos]) => {
+  const tokenPlayers = Object.entries(positions).filter(([pId, pos]) => !bankrupt[pId] && Number.isInteger(pos) && pos >= 0 && pos < MONOPOLY_BOARD.length);
+  const playerOrder = new Map(room.players.map((player, index) => [player.id, index]));
+  tokenPlayers.sort(([a], [b]) => (playerOrder.get(a) ?? Infinity) - (playerOrder.get(b) ?? Infinity));
+  const sharedCoords: Record<number, string[]> = {};
+  tokenPlayers.forEach(([pId, pos]) => {
     if (bankrupt[pId]) return;
-    const coords = getMonopolyCoords(pos);
-    const key = `${coords.x.toFixed(1)},${coords.y.toFixed(1)}`;
-    if (!sharedCoords[key]) sharedCoords[key] = [];
-    sharedCoords[key].push({ pId });
+    if (!sharedCoords[pos]) sharedCoords[pos] = [];
+    sharedCoords[pos].push(pId);
   });
 
   return (
@@ -116,13 +120,13 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
           <div className="monopoly-dice-stage">
             <DiceDisplay
-              value={isRolling ? diceValues[0] : (lastRoll?.[0] || 3)}
+              value={isRolling ? diceValues[0] : (lastRoll?.[0] || 0)}
               rolling={isRolling}
               size={120}
               onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
             />
             <DiceDisplay
-              value={isRolling ? diceValues[1] : (lastRoll?.[1] || 4)}
+              value={isRolling ? diceValues[1] : (lastRoll?.[1] || 0)}
               rolling={isRolling}
               size={120}
               onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
@@ -233,8 +237,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
           if (isOwned && ownerPlayer) {
             return (
               <div style={{
-                fontSize: '8.5px', color: '#fff', fontWeight: 900, backgroundColor: ownerSolidColor,
-                padding: '2px 6px', borderRadius: '3px', boxShadow: `0 0 6px ${ownerSolidColor}80`,
+                fontSize: '9px', color: '#fff8eb', fontWeight: 900, backgroundColor: '#203446',
+                padding: '2px 5px', border: `2px solid ${ownerSolidColor}`, borderRadius: '3px',
                 textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1, flexShrink: 0
               }}>
                 {ownerPlayer?.name.substring(0, 4)}
@@ -243,8 +247,8 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
           }
           return (
             <div style={{
-              fontSize: '9px', color: 'rgba(255,255,255,0.75)', fontWeight: 'bold',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.08)',
+              fontSize: '10px', color: '#fff8eb', fontWeight: 'bold',
+              backgroundColor: '#203446', border: '1px solid #516170',
               padding: '2px 6px', borderRadius: '3px', lineHeight: 1, flexShrink: 0
             }}>
               {space.price}$
@@ -267,7 +271,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         if (idx === 0) {
           return (
-            <div key={idx} className="monopoly-space group-special corner-space" style={{
+            <div key={idx} className={`monopoly-space group-special corner-space corner-start${isActivePos ? ' is-active-space' : ''}`} style={{
               gridRow: coords.row, gridColumn: coords.col,
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
               boxShadow: isActivePos ? '0 0 15px var(--accent-green)' : undefined,
@@ -282,7 +286,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         if (idx === 12) {
           return (
-            <div key={idx} className={`monopoly-space group-special corner-space ${ownershipClass}`} style={{
+            <div key={idx} className={`monopoly-space group-special corner-space corner-prison ${ownershipClass}${isActivePos ? ' is-active-space' : ''}`} style={{
               gridRow: coords.row, gridColumn: coords.col,
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
               boxShadow: isActivePos ? '0 0 15px var(--accent-green), inset 0 0 8px rgba(56, 176, 0, 0.1)' : undefined,
@@ -311,7 +315,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         if (idx === 24) {
           return (
-            <div key={idx} className="monopoly-space group-special corner-space" style={{
+            <div key={idx} className={`monopoly-space group-special corner-space corner-vacation${isActivePos ? ' is-active-space' : ''}`} style={{
               gridRow: coords.row, gridColumn: coords.col,
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
               boxShadow: isActivePos ? '0 0 15px var(--accent-green)' : undefined,
@@ -326,7 +330,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         if (idx === 36) {
           return (
-            <div key={idx} className="monopoly-space group-special corner-space" style={{
+            <div key={idx} className={`monopoly-space group-special corner-space corner-go-to-prison${isActivePos ? ' is-active-space' : ''}`} style={{
               gridRow: coords.row, gridColumn: coords.col,
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
               boxShadow: isActivePos ? '0 0 15px var(--accent-green)' : undefined,
@@ -345,7 +349,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
         return (
           <div
             key={idx}
-            className={`monopoly-space ${space.group ? `group-${space.group}` : 'group-special'} ${isCorner ? 'corner-space' : ''} ${ownershipClass}`}
+            className={`monopoly-space ${space.group ? `group-${space.group}` : 'group-special'} ${isCorner ? 'corner-space' : ''} ${ownershipClass}${isActivePos ? ' is-active-space' : ''}`}
             style={{
               gridRow: coords.row, gridColumn: coords.col,
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
@@ -386,7 +390,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
                 <>
                   {renderHeaderBand()}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: 1, justifyContent: 'center', width: '100%' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: '1.2', color: '#fff', width: '100%', wordBreak: 'break-word', textAlign: 'center' }}>
+                    <div className="monopoly-space-name" style={{ fontWeight: 'bold', fontSize: '10px', lineHeight: '1.2', color: '#203040', width: '100%', wordBreak: 'break-word', textAlign: 'center' }}>
                       {space.name}
                     </div>
                     {space.flag ? (
@@ -405,7 +409,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
                 <>
                   {renderPriceOrOwnerBadge()}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: 1, justifyContent: 'center', width: '100%' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: '1.2', color: '#fff', width: '100%', wordBreak: 'break-word', textAlign: 'center' }}>
+                    <div className="monopoly-space-name" style={{ fontWeight: 'bold', fontSize: '10px', lineHeight: '1.2', color: '#203040', width: '100%', wordBreak: 'break-word', textAlign: 'center' }}>
                       {space.name}
                     </div>
                     {space.flag ? (
@@ -445,25 +449,14 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
       })}
 
       {/* Tokens */}
-      {Object.entries(positions).map(([pId, pos], idx) => {
-        if (bankrupt[pId]) return null;
-
+      {tokenPlayers.map(([pId, pos], idx) => {
         const coords = getMonopolyCoords(pos);
-        const key = `${coords.x.toFixed(1)},${coords.y.toFixed(1)}`;
-        const shared = sharedCoords[key] || [];
+        const shared = sharedCoords[pos] || [];
         const count = shared.length;
-        const indexInCell = shared.findIndex(t => t.pId === pId);
-
-        let ox = 0, oy = 0;
-        if (count > 1) {
-          const angle = (indexInCell / count) * 2 * Math.PI;
-          const radius = 14;
-          ox = Math.cos(angle) * radius;
-          oy = Math.sin(angle) * radius;
-        }
+        const slot = getMonopolyTokenSlot(shared.indexOf(pId), count);
 
         const playerObj = room?.players?.find(p => p.id === pId);
-        const customColor = playerObj?.color;
+        const customColor = getSolidColor(playerObj?.color || '', TOKEN_COLORS[idx % TOKEN_COLORS.length]);
         const isHovered = hoveredPlayerId === pId;
 
         const tokenProperties = isHovered ? { '--token-color': customColor || 'var(--accent-purple)' } as React.CSSProperties : {};
@@ -471,13 +464,14 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
         return (
           <div
             key={pId}
-            className={`monopoly-token ${customColor ? '' : `color-${idx}`} ${isHovered ? 'pulsing-token' : ''}`}
+            className={`monopoly-token ${isHovered ? 'pulsing-token' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
             style={{
-              left: `${coords.x + ox}px`,
-              top: `${coords.y + oy}px`,
+              left: `${coords.x + slot.x}px`,
+              top: `${coords.y + slot.y}px`,
+              width: `${slot.size}px`,
+              height: `${slot.size}px`,
               zIndex: isHovered ? 500 : (300 + idx),
-              backgroundColor: customColor || undefined,
-              boxShadow: !isHovered && customColor ? `0 0 10px ${customColor}` : undefined,
+              backgroundColor: customColor,
               ...tokenProperties
             }}
             title={playerObj?.name}
@@ -485,7 +479,9 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
             aria-label={`${playerObj?.name || 'Player'} token on ${MONOPOLY_BOARD[pos]?.name || `space ${pos}`}${pId === gameState.activePlayerId ? ', active player' : ''}`}
             onMouseEnter={() => setHoveredPlayerId(pId)}
             onMouseLeave={() => setHoveredPlayerId(null)}
-          />
+          >
+            <span aria-hidden="true">{playerObj?.name?.trim().charAt(0).toUpperCase() || idx + 1}</span>
+          </div>
         );
       })}
     </div>

@@ -125,6 +125,10 @@ export default function App() {
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [chatSendError, setChatSendError] = useState<string | null>(null);
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [roomRailTab, setRoomRailTab] = useState<'chat' | 'activity'>('chat');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [showGameTypeModal, setShowGameTypeModal] = useState(false);
@@ -135,6 +139,7 @@ export default function App() {
   const [voteKickCountdown, setVoteKickCountdown] = useState(60);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const mobileChatEndRef = useRef<HTMLDivElement>(null);
   const lastActivePlayerIdRef = useRef<string | null>(null);
   const prevGameStateRef = useRef<GameState | null>(null);
   const rollTimersRef = useRef<{ timeout?: ReturnType<typeof setTimeout> }>({});
@@ -145,6 +150,7 @@ export default function App() {
   const joinAttemptedRef = useRef<string | null>(null);
   const rightSidebarTriggerRef = useRef<HTMLButtonElement>(null);
   const rightSidebarCloseRef = useRef<HTMLButtonElement>(null);
+  const chatToggleRef = useRef<HTMLButtonElement>(null);
 
   const appendLog = useCallback((line: string) => setGameLog(prev => [...prev, line]), []);
 
@@ -153,6 +159,11 @@ export default function App() {
     if (restoreFocus) {
       window.requestAnimationFrame(() => rightSidebarTriggerRef.current?.focus());
     }
+  }, []);
+
+  const closeChatDrawer = useCallback(() => {
+    setIsLeftSidebarOpen(false);
+    window.requestAnimationFrame(() => chatToggleRef.current?.focus());
   }, []);
 
   useEffect(() => {
@@ -306,7 +317,13 @@ export default function App() {
     const onSpectatorJoined = (data: { player: { name: string } }) => appendLog(`Spectator ${data.player.name} joined the game.`);
     const onGameEnded = (data: { winnerId: string }) => appendLog(`Game Over! ${getPlayerName(data.winnerId)} has won the game!`);
     const onChatMessage = (data: { playerId: string }) => {
-      if (data.playerId !== playerId) playSound(SOUNDS.chatIn);
+      if (data.playerId !== playerId) {
+        playSound(SOUNDS.chatIn);
+        const compact = window.matchMedia('(max-width: 1100px)').matches;
+        if ((compact && !isLeftSidebarOpen) || (!compact && roomRailTab !== 'chat')) {
+          setUnreadChatCount(count => count + 1);
+        }
+      }
     };
 
     socket.on('player_joined', onPlayerJoined);
@@ -326,7 +343,7 @@ export default function App() {
       socket.off('game_ended', onGameEnded);
       socket.off('chat_message', onChatMessage);
     };
-  }, [socket, appendLog, getPlayerName, playerId]);
+  }, [socket, appendLog, getPlayerName, playerId, isLeftSidebarOpen, roomRailTab]);
 
   // ── Seed the log whenever a *new* game begins (start / rematch / resume) ──
   const activeGameId = game.gameState?.gameId;
@@ -425,8 +442,16 @@ export default function App() {
 
   // ── Chat auto-scroll ─────────────────────────────────────────────────────
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    for (const anchor of [chatEndRef.current, mobileChatEndRef.current]) {
+      if (anchor?.offsetParent) anchor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [roomApi.chatMessages]);
+
+  useEffect(() => {
+    if (isLeftSidebarOpen || roomRailTab === 'chat' && !window.matchMedia('(max-width: 1100px)').matches) {
+      setUnreadChatCount(0);
+    }
+  }, [isLeftSidebarOpen, roomRailTab]);
 
   // ── Lobby appearance: keep the pre-selected swatch valid & available ─────
   const maxPlayersSetting: number = room?.lobbySettings?.maxPlayers || 4;
@@ -451,11 +476,20 @@ export default function App() {
   }, [room?.gameType, room?.hostId, room?.lobbySettings?.maxPlayers, playerId, roomApi]);
 
   // ── Actions ─────────────────────────────────────────────────────────────
-  const handleSendChat = () => {
-    if (!chatInput.trim()) return;
-    roomApi.sendChat(chatInput);
-    playSound(SOUNDS.chatOut);
-    setChatInput('');
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || isSendingChat) return;
+    setIsSendingChat(true);
+    setChatSendError(null);
+    const result = await roomApi.sendChat(chatInput);
+    setIsSendingChat(false);
+    if (result.success) {
+      playSound(SOUNDS.chatOut);
+      setChatInput('');
+    } else {
+      const message = result.message || 'Message could not be sent.';
+      setChatSendError(message);
+      showToast(message, 'warning');
+    }
   };
 
   const handleCopyLink = () => {
@@ -522,6 +556,11 @@ export default function App() {
 
   const handleLeaveGame = () => {
     setIsRightSidebarOpen(false);
+    setIsLeftSidebarOpen(false);
+    setIsDrawerOpen(false);
+    setUnreadChatCount(0);
+    setRoomRailTab('chat');
+    setChatSendError(null);
     roomApi.leaveRoomSession();
     game.setGameState(null);
     seededGameIdRef.current = null;
@@ -540,6 +579,9 @@ export default function App() {
 
   const handleLogout = () => {
     roomApi.leaveRoomSession();
+    setIsLeftSidebarOpen(false);
+    setUnreadChatCount(0);
+    setRoomRailTab('chat');
     auth.logout();
     setInLobby(false);
     setInGame(false);
@@ -603,24 +645,23 @@ export default function App() {
 
   // ── Landing / auth screen ───────────────────────────────────────────────
   const renderLanding = () => (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100dvh',
-        padding: '24px',
-        background: 'linear-gradient(160deg, #1B1140 0%, #0D0826 55%, #06020a 100%)',
-        position: 'relative',
-        overflow: 'hidden',
-        fontFamily: "'Manrope', sans-serif",
-      }}
-    >
-      <div className="landing-blob landing-blob-violet" />
-      <div className="landing-blob landing-blob-lime" />
-      <div className="landing-blob landing-blob-coral" />
-
-      {authTab === 'guest' && currentUser ? (
+    <div className="landing-screen">
+      <div className="landing-screen__intro">
+        <span className="landing-screen__mark">turn<span>Up</span>.io</span>
+        <h1>Bring everyone<br />to the table.</h1>
+        <p>One room for familiar games, live turns, and the conversation that makes game night yours.</p>
+        <div className="landing-screen__game-list" aria-label="Available games">
+          <span>Ludo</span><span>UNO</span><span>Monopoly</span><span>Snakes &amp; Ladders</span>
+        </div>
+        <div className="landing-screen__table" aria-hidden="true">
+          <span className="landing-screen__table-center" />
+          <span className="landing-screen__piece landing-screen__piece--one" />
+          <span className="landing-screen__piece landing-screen__piece--two" />
+          <span className="landing-screen__piece landing-screen__piece--three" />
+          <span className="landing-screen__piece landing-screen__piece--four" />
+        </div>
+      </div>
+      <div className="landing-screen__entry">{authTab === 'guest' && currentUser ? (
         <LandingPage
           currentUser={currentUser}
           isConnected={isConnected}
@@ -634,7 +675,7 @@ export default function App() {
         />
       ) : (
         <AuthPage authTab={authTab} onAuthTabChange={setAuthTab} onAuthenticated={auth.applySession} />
-      )}
+      )}</div>
 
       <RoomsModal
         open={showRoomsModal}
@@ -795,7 +836,7 @@ export default function App() {
             <WifiOff size={15} /> Connection lost. Reconnecting…
           </div>
         )}
-        <div className={`left-sidebar-overlay ${isLeftSidebarOpen ? 'active' : ''}`} onClick={() => setIsLeftSidebarOpen(false)} />
+        <div className={`left-sidebar-overlay ${isLeftSidebarOpen ? 'active' : ''}`} onClick={closeChatDrawer} />
         <button
           type="button"
           className={`game-sidebar-overlay ${isRightSidebarOpen ? 'active' : ''}`}
@@ -808,19 +849,24 @@ export default function App() {
         <LeftSidebar
           roomId={room.id}
           isOpen={isLeftSidebarOpen}
-          onClose={() => setIsLeftSidebarOpen(false)}
+          onClose={closeChatDrawer}
           chatMessages={roomApi.chatMessages}
           currentPlayerId={playerId}
           chatInput={chatInput}
-          onChatInputChange={setChatInput}
-          onSendChat={handleSendChat}
+          onChatInputChange={value => { setChatInput(value); setChatSendError(null); }}
+          onSendChat={() => void handleSendChat()}
           copiedLink={copiedLink}
           onCopyLink={handleCopyLink}
-          chatEndRef={chatEndRef}
+          chatEndRef={mobileChatEndRef}
+          placement="mobile"
+          isConnected={isConnected}
+          isSending={isSendingChat}
+          sendError={chatSendError}
         />
 
-        <button className="chat-toggle-btn" onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} aria-label="Toggle chat">
+        <button ref={chatToggleRef} className="chat-toggle-btn" onClick={() => isLeftSidebarOpen ? closeChatDrawer() : setIsLeftSidebarOpen(true)} aria-label={unreadChatCount ? `Open room chat, ${unreadChatCount} unread messages` : 'Open room chat'} aria-expanded={isLeftSidebarOpen}>
           {isLeftSidebarOpen ? <X size={20} /> : <MessageCircle size={20} />}
+          {!isLeftSidebarOpen && unreadChatCount > 0 && <span className="chat-unread-badge" aria-hidden="true">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
         </button>
         <button
           ref={rightSidebarTriggerRef}
@@ -843,9 +889,17 @@ export default function App() {
                 <span className="up">Up</span>
               </span>
               <span className="hud-game-badge">{room.gameType.replace(/_/g, ' ')}</span>
+              <button type="button" className="hud-room-code" onClick={handleCopyLink} aria-label={`Copy invite link for room ${room.id}`} title="Copy invite link">
+                Room {room.id} {copiedLink ? '· Copied' : '· Copy invite'}
+              </button>
             </div>
 
             <div className="hud-actions">
+              {!inLobby && (
+                <button type="button" id="mobile-log-trigger" className="hud-log-trigger" onClick={() => setIsDrawerOpen(true)} aria-label="Open match log">
+                  Log
+                </button>
+              )}
               {!inLobby ? (
                 <span className={`hud-turn-pill ${isMyTurn ? 'my-turn' : 'other-turn'}`} role="status" aria-live="polite">
                   <span className="hud-turn-dot" aria-hidden="true" />
@@ -886,17 +940,8 @@ export default function App() {
 
           {/* Action zone (Monopoly keeps its controls inside the board's center panel) */}
           {!isMonopoly && (
-            <div className="game-action-dock">
+            <div className="game-action-dock game-action-dock--mobile">
               {renderActionBar()}
-
-              <button
-                onClick={() => setIsDrawerOpen(true)}
-                className="btn-secondary"
-                style={{ display: 'none', marginTop: '10px', padding: '6px 16px', width: '100%', maxWidth: '200px' }}
-                id="mobile-log-trigger"
-              >
-                View Game Log
-              </button>
             </div>
           )}
         </main>
@@ -908,14 +953,6 @@ export default function App() {
           role={isRightSidebarOpen ? 'dialog' : 'complementary'}
           aria-modal={isRightSidebarOpen ? 'true' : undefined}
           aria-label={inLobby ? 'Lobby controls' : 'Game details'}
-          style={{
-            width: '320px',
-            background: 'var(--bg-secondary)',
-            borderLeft: '1px solid rgba(123,44,191,0.2)',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-          }}
         >
           <div className="game-sidebar__mobile-header">
             <div>
@@ -932,7 +969,7 @@ export default function App() {
               <X size={20} aria-hidden="true" />
             </button>
           </div>
-          {inLobby ? (
+          <div className="room-rail__primary">{inLobby ? (
             <WaitingRoomSidebar
               room={room}
               currentPlayerId={playerId}
@@ -965,9 +1002,41 @@ export default function App() {
               activePlayerId={gameStateForBoard.activePlayerId}
               onKickPlayer={roomApi.initiateVoteKick}
             />
+          )}</div>
+
+          {!inLobby && !isMonopoly && !roomApi.isSpectator && (
+            <div className="game-action-dock game-action-dock--rail">{renderActionBar()}</div>
           )}
 
-          {!isMonopoly && <GameLogPanel gameLog={gameLog} />}
+          <div className="room-rail__secondary">
+            <div className="room-rail__tabs" role="tablist" aria-label="Room conversation and activity">
+              <button type="button" role="tab" aria-selected={roomRailTab === 'chat'} onClick={() => setRoomRailTab('chat')} className={roomRailTab === 'chat' ? 'is-active' : ''}>
+                Chat {unreadChatCount > 0 && <span className="room-rail__unread">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
+              </button>
+              <button type="button" role="tab" aria-selected={roomRailTab === 'activity'} onClick={() => setRoomRailTab('activity')} className={roomRailTab === 'activity' ? 'is-active' : ''}>Match log</button>
+            </div>
+            <div className="room-rail__tab-panel" role="tabpanel">
+              {roomRailTab === 'chat' ? (
+                <LeftSidebar
+                  roomId={room.id}
+                  isOpen={false}
+                  onClose={() => undefined}
+                  chatMessages={roomApi.chatMessages}
+                  currentPlayerId={playerId}
+                  chatInput={chatInput}
+                  onChatInputChange={value => { setChatInput(value); setChatSendError(null); }}
+                  onSendChat={() => void handleSendChat()}
+                  copiedLink={copiedLink}
+                  onCopyLink={handleCopyLink}
+                  chatEndRef={chatEndRef}
+                  placement="rail"
+                  isConnected={isConnected}
+                  isSending={isSendingChat}
+                  sendError={chatSendError}
+                />
+              ) : <GameLogPanel gameLog={gameLog} />}
+            </div>
+          </div>
         </div>
 
         {/* Overlays */}

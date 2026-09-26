@@ -22,7 +22,7 @@ Players can create or join rooms, use public room discovery or private invitatio
 - Room chat is a binding requirement. It must remain usable before, during, and after matches on desktop and mobile without obscuring the board or active decision.
 - Current authentication, rooms, bots, settings, statistics, and game rules are implementation facts, not binding redesign commitments. The user delegated decisions about changing them; any proposed removal or rule change needs an explicit rationale in the plan.
 - Keep game outcomes, current turn, legal actions, and multiplayer synchronization clear and trustworthy during any interface redesign.
-- Existing stack: React, TypeScript, Vite, Socket.io, Express, Prisma, PostgreSQL. The current request is for a redesign plan, not implementation.
+- Existing stack: React, TypeScript, Vite, Socket.io, Express, Prisma, PostgreSQL. The current work implements the approved Game Kit direction in the existing application.
 
 ## Brand Commitments
 The product is currently named TurnUp.io. The user gave broad freedom to rethink the current identity; no palette, typography, or logo is confirmed as mandatory.
