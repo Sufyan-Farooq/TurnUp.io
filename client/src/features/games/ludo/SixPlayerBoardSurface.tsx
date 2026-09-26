@@ -12,10 +12,10 @@ const seatColors = getPlayerColorPalette(6);
 // Outer hexagon vertices with flat top and bottom (angles -120, -60, 0, 60, 120, 180)
 const outerHexAngles = [-120, -60, 0, 60, 120, 180];
 const hexPoints = outerHexAngles
-  .map(angle => sixPolar(angle, 490))
+  .map(angle => sixPolar(angle, 510))
   .map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 const innerHexPoints = outerHexAngles
-  .map(angle => sixPolar(angle, 476))
+  .map(angle => sixPolar(angle, 496))
   .map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
 export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ activeSeat, names }) => (
@@ -43,8 +43,8 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
 
       {/* 6 Radial Sector Backgrounds */}
       {SIX_SEAT_ANGLES.map((angle, seat) => {
-        const a1 = sixPolar(angle - 30, 475);
-        const a2 = sixPolar(angle + 30, 475);
+        const a1 = sixPolar(angle - 30, 494);
+        const a2 = sixPolar(angle + 30, 494);
         return (
           <path
             key={`sector-bg-${seat}`}
@@ -77,19 +77,24 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
     {Array.from({ length: 78 }, (_, index) => {
       const coords = getSixLudoCoords(0, index, 0);
       const seat = Math.floor(index / 13);
-      const isStart = index % 13 === 0;
+      const step = index % 13;
+      const isStart = step === 0;
       const isSafe = isSixPlayerStarSpace(index);
+      const isHomeEntry = step === 12;
+      const entrySeat = (seat + 1) % 6;
+      const tileAngle = sixTrackTileAngle(index);
       return (
         <div
           key={`track-${index}`}
-          className={`ludo-six-track-cell${isStart ? ' is-start' : ''}${isSafe ? ' is-safe' : ''}`}
+          className={`ludo-six-track-cell${isStart ? ' is-start' : ''}${isSafe ? ' is-safe' : ''}${isHomeEntry ? ' is-home-entry' : ''}`}
           style={{
             left: coords.x,
             top: coords.y,
-            '--seat-color': isStart ? seatColors[seat] : undefined,
-            '--cell-angle': sixTrackTileAngle(index),
+            '--seat-color': isHomeEntry ? seatColors[entrySeat] : isStart ? seatColors[seat] : undefined,
+            '--cell-angle': tileAngle,
+            '--counter-angle': `${-parseFloat(tileAngle)}deg`,
           } as React.CSSProperties}
-          title={isStart ? `${names[seat] || getLudoColorName(seat, 6)} safe start (Space ${index + 1})` : isSafe ? `Safe star space ${index + 1}` : `Space ${index + 1}`}
+          title={isStart ? `${names[seat] || getLudoColorName(seat, 6)} protected start (Space ${index + 1})` : isSafe ? `Protected star space ${index + 1}` : isHomeEntry ? `${names[entrySeat] || getLudoColorName(entrySeat, 6)} home entry (Space ${index + 1})` : `Space ${index + 1}`}
         >
           {(isStart || isSafe) && (
             <svg
@@ -99,6 +104,11 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
               style={{ color: isStart ? '#fff5dc' : '#44335c' }}
             >
               <path fill="currentColor" d="m12 1.8 2.9 6 6.6 1-4.8 4.7 1.1 6.6-5.8-3.1-5.8 3.1 1.1-6.6-4.8-4.7 6.6-1z" />
+            </svg>
+          )}
+          {isHomeEntry && (
+            <svg className="ludo-six-track-cell__entry-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 4v15m0 0-6-6m6 6 6-6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
         </div>

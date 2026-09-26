@@ -228,6 +228,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   filter: drop-shadow(0 28px 36px rgba(0, 7, 13, .55));
   pointer-events: none;
 }
@@ -236,9 +237,10 @@
 .ludo-six-lane-cell {
   position: absolute;
   z-index: 2;
+  display: grid;
+  place-items: center;
   width: 52px;
   height: 52px;
-  transform: translate(-50%, -50%);
   border: 2px solid #7e6c56;
   border-radius: 2px;
   background: #eee1cb;
@@ -252,12 +254,29 @@
   box-shadow: 0 0 0 2px rgba(13, 29, 40, .7), 0 3px 9px #071420;
 }
 
+.ludo-six-track-cell.is-safe {
+  border-color: #c9aa6c;
+  background: #fff1d7;
+}
+
+.ludo-six-track-cell.is-home-entry {
+  border-color: color-mix(in srgb, var(--seat-color) 55%, #7e6c56);
+  background: color-mix(in srgb, var(--seat-color) 18%, #eee1cb);
+}
+
 .ludo-six-track-cell__star {
-  position: relative;
   z-index: 1;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  transform: rotate(var(--counter-angle, 0deg));
   filter: drop-shadow(0 1px 1px rgba(35, 25, 39, .35));
+}
+
+.ludo-six-track-cell__entry-arrow {
+  width: 25px;
+  height: 25px;
+  transform: rotate(90deg);
+  color: color-mix(in srgb, var(--seat-color) 75%, #172734);
 }
 
 .ludo-six-lane-cell {
