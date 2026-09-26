@@ -1,6 +1,6 @@
 import React from 'react';
 import { getLudoColorName, getPlayerColorPalette } from '../../../theme/playerColors';
-import { getSixLudoCoords, sixBaseCenter, sixPolar, SIX_BASE_SLOT_OFFSETS, SIX_SEAT_ANGLES } from './sixPlayerGeometry';
+import { getSixLudoCoords, sixBaseCenter, sixLaneTileAngle, sixPolar, sixTrackTileAngle, SIX_BASE_SLOT_OFFSETS, SIX_SEAT_ANGLES } from './sixPlayerGeometry';
 
 interface SixPlayerBoardSurfaceProps {
   activeSeat: number;
@@ -87,6 +87,7 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
             left: coords.x,
             top: coords.y,
             '--seat-color': isStart ? seatColors[seat] : undefined,
+            '--cell-angle': sixTrackTileAngle(index),
           } as React.CSSProperties}
           title={isStart ? `${names[seat] || getLudoColorName(seat, 6)} Start (Space ${index + 1})` : isSafe ? `Safe Space ${index + 1}` : `Space ${index + 1}`}
         >
@@ -108,6 +109,7 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
               left: coords.x,
               top: coords.y,
               '--seat-color': seatColors[seat],
+              '--cell-angle': sixLaneTileAngle(seat),
             } as React.CSSProperties}
             title={`${names[seat] || getLudoColorName(seat, 6)} Home Lane ${step + 1}`}
           />

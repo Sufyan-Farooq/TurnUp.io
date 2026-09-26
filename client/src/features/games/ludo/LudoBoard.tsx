@@ -139,8 +139,8 @@ export const isTokenMoveValid = (
  * pending). The board keeps socket/gameplay concerns outside this component;
  * moves are sent through `onMoveToken` and validated by the server.
  *
- * The server ruleset currently has no safe-zone capture protection, so the
- * board deliberately avoids marking cells as safe.
+ * Six-player starts and starred spaces are protected from captures in the
+ * authoritative server rules.
  */
 export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUserId, onMoveToken }) => {
   // Match state is authoritative once play begins; lobby settings can lag after

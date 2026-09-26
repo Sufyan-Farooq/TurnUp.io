@@ -2,6 +2,13 @@ import { IGameRuleset, GameState, GameAction, ActionResult, IPlayer, GameEvent }
 import { createRngFromState } from './rng';
 import { getLudoSeatColors } from './ludoPalette';
 
+/** Six-player boards mark each colored entry and the starred track space safe. */
+export function isLudoSafeTrackPosition(position: number, maxPlayers: number): boolean {
+  if (maxPlayers !== 6 || position < 0 || position >= 78) return false;
+  const offset = position % 13;
+  return offset === 0 || offset === 8;
+}
+
 export interface LudoState extends GameState {
   gameSpecificState: {
     // PlayerId -> Array of 4 token positions
@@ -217,7 +224,8 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
       let captured = false;
 
       // Handle collision on common track (0 to trackLength - 1)
-      if (newPos >= 0 && newPos <= (trackLength - 1)) {
+      if (newPos >= 0 && newPos <= (trackLength - 1) &&
+          !isLudoSafeTrackPosition(newPos, maxPlayers)) {
         Object.keys(updatedTokens).forEach(otherPlayerId => {
           if (otherPlayerId !== playerId) {
             const otherTokens = updatedTokens[otherPlayerId];

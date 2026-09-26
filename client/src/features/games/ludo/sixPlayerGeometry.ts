@@ -57,6 +57,22 @@ export function sixTrackCenter(position: number) {
   }
 }
 
+/** Rotation for square track tiles so diagonal arms read as continuous lanes. */
+export function sixTrackTileAngle(position: number) {
+  const normalized = ((position % 78) + 78) % 78;
+  const sector = Math.floor(normalized / 13);
+  const step = normalized % 13;
+  const arm = SIX_SEAT_ANGLES[sector] ?? SIX_SEAT_ANGLES[0];
+  const nextArm = SIX_SEAT_ANGLES[(sector + 1) % 6] ?? SIX_SEAT_ANGLES[0];
+  const laneAngle = step <= 5 ? arm : step === 6 ? arm + 30 : nextArm;
+  return `${laneAngle + 180}deg`;
+}
+
+export function sixLaneTileAngle(seat: number) {
+  const arm = SIX_SEAT_ANGLES[seat] ?? SIX_SEAT_ANGLES[0];
+  return `${arm + 180}deg`;
+}
+
 export function getSixLudoCoords(seat: number, position: number, token: number) {
   const arm = SIX_SEAT_ANGLES[seat] ?? SIX_SEAT_ANGLES[0];
   if (position === -1) {

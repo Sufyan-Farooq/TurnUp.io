@@ -1,4 +1,4 @@
-import { LudoRuleset } from '../engine/ludo';
+import { isLudoSafeTrackPosition, LudoRuleset } from '../engine/ludo';
 import { IPlayer } from '../engine/interfaces';
 
 describe('LudoRuleset.processAction', () => {
@@ -54,5 +54,59 @@ describe('LudoRuleset.processAction', () => {
 
     expect(result.isValid).toBe(true);
     expect(result.newState?.gameSpecificState.tokens[firstPlayer.id][0]).toBe(expectedStart);
+  });
+
+  it.each([
+    { safeCell: 0, from: -1, roll: 6 },
+    { safeCell: 8, from: 7, roll: 1 },
+  ])('protects six-player safe cell $safeCell from capture', ({ safeCell, from, roll }) => {
+    const ruleset = new LudoRuleset();
+    const sixPlayers: IPlayer[] = [
+      { id: 'red', name: 'Red', isBot: false, color: '#FF5C66' },
+      { id: 'blue', name: 'Blue', isBot: false, color: '#4E8CFF' },
+    ];
+    const state = ruleset.initialize(sixPlayers, { maxPlayers: 6 }, 999);
+    state.subState = 'WAITING_FOR_TOKEN_MOVE';
+    state.gameSpecificState.lastRoll = roll;
+    state.gameSpecificState.tokens.red[0] = from;
+    state.gameSpecificState.tokens.blue[0] = safeCell;
+
+    const result = ruleset.processAction(state, {
+      type: 'MOVE_TOKEN', playerId: 'red', payload: { tokenIndex: 0 }, timestamp: Date.now()
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.newState?.gameSpecificState.tokens.blue[0]).toBe(safeCell);
+    expect(result.events.some(event => event.type === 'TOKEN_CAPTURED')).toBe(false);
+  });
+
+  it('still captures a pawn on an unmarked six-player track cell', () => {
+    const ruleset = new LudoRuleset();
+    const sixPlayers: IPlayer[] = [
+      { id: 'red', name: 'Red', isBot: false, color: '#FF5C66' },
+      { id: 'blue', name: 'Blue', isBot: false, color: '#4E8CFF' },
+    ];
+    const state = ruleset.initialize(sixPlayers, { maxPlayers: 6 }, 999);
+    state.subState = 'WAITING_FOR_TOKEN_MOVE';
+    state.gameSpecificState.lastRoll = 1;
+    state.gameSpecificState.tokens.red[0] = 8;
+    state.gameSpecificState.tokens.blue[0] = 9;
+
+    const result = ruleset.processAction(state, {
+      type: 'MOVE_TOKEN', playerId: 'red', payload: { tokenIndex: 0 }, timestamp: Date.now()
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.newState?.gameSpecificState.tokens.blue[0]).toBe(-1);
+    expect(result.events.some(event => event.type === 'TOKEN_CAPTURED')).toBe(true);
+  });
+
+  it('matches the six-player board stars and colored starts to safe rules', () => {
+    for (let seat = 0; seat < 6; seat++) {
+      expect(isLudoSafeTrackPosition(seat * 13, 6)).toBe(true);
+      expect(isLudoSafeTrackPosition(seat * 13 + 8, 6)).toBe(true);
+      expect(isLudoSafeTrackPosition(seat * 13 + 9, 6)).toBe(false);
+    }
+    expect(isLudoSafeTrackPosition(8, 4)).toBe(false);
   });
 });

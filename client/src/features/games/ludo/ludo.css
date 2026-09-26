@@ -243,6 +243,7 @@
   border-radius: 2px;
   background: #eee1cb;
   box-shadow: inset 0 1px rgba(255, 255, 255, .75), 0 2px 5px rgba(0, 9, 16, .34);
+  transform: translate(-50%, -50%) rotate(var(--cell-angle, 0deg));
 }
 
 .ludo-six-track-cell.is-start {
@@ -262,6 +263,7 @@
 }
 
 .ludo-six-lane-cell {
+  transform: translate(-50%, -50%) rotate(var(--cell-angle, 0deg));
   border-color: color-mix(in srgb, var(--seat-color) 70%, #5a4a35);
   background: color-mix(in srgb, var(--seat-color) 79%, #f4e8d4);
 }

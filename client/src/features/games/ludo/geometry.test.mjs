@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getSixLudoCoords, sixTrackCenter, sixBaseCenter, SIX_BASE_SLOT_OFFSETS } from './sixPlayerGeometry.ts';
+import { getSixLudoCoords, sixTrackCenter, sixBaseCenter, sixTrackTileAngle, sixLaneTileAngle, SIX_BASE_SLOT_OFFSETS } from './sixPlayerGeometry.ts';
 import { getTokenDestination, getTokenStackOffset } from './tokenPlacement.ts';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -56,6 +56,13 @@ test('stacked pawns have distinct positions for two, three, and four tokens', ()
         assert.ok(distance(offsets[first], offsets[second]) >= 26);
       }
     }
+  }
+});
+
+test('track and home-lane tiles rotate together around all six aligned arms', () => {
+  for (let seat = 0; seat < 6; seat++) {
+    assert.equal(sixTrackTileAngle(seat * 13), sixLaneTileAngle(seat));
+    assert.equal(sixTrackTileAngle(seat * 13 + 6), `${seat * 60 + 120}deg`);
   }
 });
 
