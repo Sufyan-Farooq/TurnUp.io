@@ -137,7 +137,13 @@ export function formatGameEvent(evt: GameEvent, ctx: LogFormatContext): string |
     case 'PLAYER_SKIPPED':
       return `UNO: ${name} was SKIPPED.`;
     case 'DIRECTION_REVERSED':
-      return 'UNO: Play direction was REVERSED.';
+      return `UNO: ${name} reversed play${payload.direction === 1 ? ' — now clockwise' : payload.direction === -1 ? ' — now counter-clockwise' : ''}.`;
+    case 'PLAYER_PASSED':
+      return `UNO: ${name} passed.`;
+    case 'NO_CARDS_TO_DRAW':
+      return `UNO: ${name} could not draw; the deck is empty.`;
+    case 'PLAYER_FINISHED':
+      return `${ctx.gameType === 'LUDO' ? 'LUDO' : 'UNO'}: ${name} finished in place ${payload.rank}.`;
     case 'UNO_DECLARED':
       return `UNO: ${name} declared UNO!`;
     case 'UNO_CHALLENGE_SUCCESS':

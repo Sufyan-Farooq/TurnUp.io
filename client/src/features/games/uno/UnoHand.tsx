@@ -6,6 +6,7 @@ import { getUnoCardSymbol } from './UnoBoard';
 export interface UnoHandProps {
   gameState: UnoGameStateLike;
   currentUserId: string;
+  isPreview?: boolean;
   /** Play a single card. `selectedColor` is never passed from here — wild-card
    *  color selection is owned by whichever parent wires up `UnoColorPicker`. */
   onPlayCard: (cardIndex: number, selectedColor?: 'red' | 'green' | 'blue' | 'yellow') => void;
@@ -23,7 +24,7 @@ export interface UnoHandProps {
  * Supports both tap-to-select-then-play (for doubles, when `rules.cardDoubles`
  * is enabled) and legacy single-tap-to-play (when doubles are disabled).
  */
-export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPlayCard, onPlayDoubles, onError }) => {
+export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPreview = false, onPlayCard, onPlayDoubles, onError }) => {
   const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
 
   const hand = getOwnHand(gameState, currentUserId);
@@ -60,10 +61,10 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
       <div className="uno-hand-heading">
         <div>
           <span className="uno-hand-kicker">Your hand</span>
-          <strong>{hand.length} card{hand.length === 1 ? '' : 's'}</strong>
+          <strong>{isPreview ? 'Not dealt' : `${hand.length} card${hand.length === 1 ? '' : 's'}`}</strong>
         </div>
         <span className="uno-hand-hint">
-          {isMyTurn ? (rules.cardDoubles ? 'Select one card, or pair matching values' : 'Choose a highlighted card') : 'Cards unlock on your turn'}
+          {isPreview ? 'Cards are dealt when the match starts' : isMyTurn ? (rules.cardDoubles ? 'Select one card, or pair matching values' : 'Choose a highlighted card') : 'Cards unlock on your turn'}
         </span>
       </div>
 
@@ -89,6 +90,7 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, onPl
       )}
 
       <div className="uno-hand-row" role="group" aria-label="Your UNO cards">
+        {isPreview && <span className="uno-hand-empty">Your cards will appear here.</span>}
         {hand.map((card, idx) => {
           const isDrawnCard = idx === hand.length - 1;
           const isSelected = selectedCardIndices.includes(idx);

@@ -36,4 +36,36 @@ describe('UnoRuleset.processAction', () => {
     expect(result.isValid).toBe(false);
     expect(result.error).toBeTruthy();
   });
+
+  it('publishes the new direction when a reverse card is played', () => {
+    const ruleset = new UnoRuleset();
+    const threePlayers = [...players, { id: 'p3', name: 'Cara', isBot: false }];
+    const state = ruleset.initialize(threePlayers, { gameId: 'g1' }, 42);
+    const activePlayerId = state.activePlayerId;
+    state.gameSpecificState.hands[activePlayerId] = [
+      { color: 'red', value: 'reverse' },
+      { color: 'blue', value: '4' }
+    ];
+    state.gameSpecificState.currentCard = { color: 'red', value: '3' };
+    state.gameSpecificState.currentColor = 'red';
+    state.gameSpecificState.pendingDrawCount = 0;
+    state.gameSpecificState.direction = 1;
+
+    const result = ruleset.processAction(state, {
+      type: 'PLAY_CARD',
+      playerId: activePlayerId,
+      payload: { cardIndex: 0 },
+      timestamp: Date.now()
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.newState?.gameSpecificState.direction).toBe(-1);
+    expect(result.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'DIRECTION_REVERSED',
+        playerId: activePlayerId,
+        payload: { direction: -1 }
+      })
+    ]));
+  });
 });

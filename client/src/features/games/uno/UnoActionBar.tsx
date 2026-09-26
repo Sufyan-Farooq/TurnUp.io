@@ -6,12 +6,13 @@ import { getOwnHand, isCardPlayable } from './uno.types';
 export interface UnoActionBarProps {
   gameState: UnoGameStateLike;
   currentUserId: string;
+  isPreview?: boolean;
   onDrawCard: () => void;
   onPlayCard: (cardIndex: number, selectedColor?: 'red' | 'green' | 'blue' | 'yellow') => void;
   onDeclareUno: () => void;
 }
 
-export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUserId, onDrawCard, onPlayCard, onDeclareUno }) => {
+export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUserId, isPreview = false, onDrawCard, onPlayCard, onDeclareUno }) => {
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const hand = getOwnHand(gameState, currentUserId);
   const canDeclareUno = hand.length > 0 && hand.length <= 2;
@@ -23,22 +24,22 @@ export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUs
   return (
     <div className={`uno-action-bar ${isMyTurn ? 'is-active' : ''}`} aria-live="polite">
       <div className="uno-action-context">
-        <span className="uno-action-kicker">{isMyTurn ? 'Make your move' : 'Table status'}</span>
-        <strong>{isMyTurn ? (isPlayOrPass ? 'Play the drawn card or pass' : 'Choose a card or draw') : 'Waiting for your turn'}</strong>
+        <span className="uno-action-kicker">{isPreview ? 'Lobby status' : isMyTurn ? 'Make your move' : 'Table status'}</span>
+        <strong>{isPreview ? 'Waiting for host to start' : isMyTurn ? (isPlayOrPass ? 'Play the drawn card or pass' : 'Choose a card or draw') : 'Waiting for your turn'}</strong>
       </div>
       <div className="uno-action-buttons">
-        {isMyTurn && isPlayOrPass && drawnCardPlayable && (
+        {!isPreview && isMyTurn && isPlayOrPass && drawnCardPlayable && (
           <button type="button" onClick={() => onPlayCard(drawnCardIndex)} className="uno-action-button uno-action-button--play">
             <Layers aria-hidden="true" /> Play drawn card
           </button>
         )}
-        {isMyTurn && (
+        {!isPreview && isMyTurn && (
           <button type="button" onClick={onDrawCard} className={`uno-action-button ${isPlayOrPass ? 'uno-action-button--secondary' : 'uno-action-button--draw'}`}>
             {isPlayOrPass ? <ArrowRightCircle aria-hidden="true" /> : <Layers aria-hidden="true" />}
             {isPlayOrPass ? 'Pass turn' : 'Draw card'}
           </button>
         )}
-        {canDeclareUno && (
+        {!isPreview && canDeclareUno && (
           <button type="button" onClick={onDeclareUno} disabled={hasDeclaredUno} className="uno-action-button uno-action-button--uno">
             <Megaphone aria-hidden="true" /> {hasDeclaredUno ? 'UNO declared' : 'Call UNO'}
           </button>

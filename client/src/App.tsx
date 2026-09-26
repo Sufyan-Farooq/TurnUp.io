@@ -675,10 +675,13 @@ export default function App() {
               currentUserId={playerId}
               onDrawCard={() => game.sendGameAction('DRAW_CARD')}
               onChallengeUno={targetPlayerId => game.sendGameAction('CHALLENGE_UNO', { targetPlayerId })}
+              recentLogs={gameLog}
+              isPreview={!displayGameState}
             >
               <UnoHand
                 gameState={gameStateForBoard as unknown as UnoGameStateLike}
                 currentUserId={playerId}
+                isPreview={!displayGameState}
                 onPlayCard={cardIndex => handlePlayCards([cardIndex])}
                 onPlayDoubles={indices => handlePlayCards(indices)}
                 onError={message => showToast(message, 'warning')}
@@ -751,6 +754,7 @@ export default function App() {
           <UnoActionBar
             gameState={gameStateForBoard as unknown as UnoGameStateLike}
             currentUserId={playerId}
+            isPreview={!displayGameState}
             onDrawCard={() => game.sendGameAction('DRAW_CARD')}
             onPlayCard={cardIndex => handlePlayCards([cardIndex])}
             onDeclareUno={() => game.sendGameAction('DECLARE_UNO')}
