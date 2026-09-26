@@ -2572,6 +2572,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   position: relative;
   width: 100%;
 }
+.auth-nickname-input {
+  text-align: center;
+}
 .auth-input {
   width: 100%;
 }
@@ -2596,6 +2599,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-input-inline-action:hover {
   background: rgba(240, 188, 100, 0.22);
   color: #fff;
+}
+@media (max-width: 520px) {
+  .auth-input-group--nickname .auth-nickname-input {
+    text-align: left;
+    padding-right: 58px;
+  }
+  .auth-input-group--nickname .auth-input-inline-action {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+  .auth-input-inline-action__label {
+    display: none;
+  }
 }
 .password-toggle-btn {
   position: absolute;

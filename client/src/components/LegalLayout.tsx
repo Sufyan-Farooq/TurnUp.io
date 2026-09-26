@@ -14,6 +14,7 @@ export interface LegalLayoutProps {
   subtitle: string;
   badge?: string;
   lastUpdated?: string;
+  dateLabel?: string;
   toc?: TocItem[];
   children: React.ReactNode;
 }
@@ -23,6 +24,7 @@ export const LegalLayout: React.FC<LegalLayoutProps> = ({
   subtitle,
   badge = 'Policy',
   lastUpdated = 'September 2026',
+  dateLabel = 'Last updated',
   toc = [],
   children,
 }) => {
@@ -201,7 +203,7 @@ export const LegalLayout: React.FC<LegalLayoutProps> = ({
             }}
           >
             <Calendar size={13} />
-            <span>Effective: {lastUpdated}</span>
+            <span>{dateLabel}: {lastUpdated}</span>
           </div>
         </div>
       </section>

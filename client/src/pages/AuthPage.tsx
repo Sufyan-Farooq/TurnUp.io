@@ -195,11 +195,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       </div>
 
       {/* Segmented Mode Selector */}
-      <div className="auth-segmented-nav" role="tablist" aria-label="Authentication modes">
+      <div className="auth-segmented-nav" role="group" aria-label="Authentication modes">
         <button
           type="button"
-          role="tab"
-          aria-selected={authTab === 'guest'}
+          aria-pressed={authTab === 'guest'}
           className={`auth-segment-btn ${authTab === 'guest' ? 'active' : ''}`}
           onClick={() => handleTabChange('guest')}
         >
@@ -207,8 +206,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={authTab === 'login'}
+          aria-pressed={authTab === 'login'}
           className={`auth-segment-btn ${authTab === 'login' ? 'active' : ''}`}
           onClick={() => handleTabChange('login')}
         >
@@ -216,8 +214,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={authTab === 'register'}
+          aria-pressed={authTab === 'register'}
           className={`auth-segment-btn ${authTab === 'register' ? 'active' : ''}`}
           onClick={() => handleTabChange('register')}
         >
@@ -240,7 +237,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             <strong>Instant Guest Mode:</strong> Jump in with a nickname. No password or email required. (Matches are not saved to a career profile).
           </div>
 
-          <div className="auth-input-group">
+          <div className="auth-input-group auth-input-group--nickname">
             <input
               type="text"
               placeholder="Pick a nickname…"
@@ -253,8 +250,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               required
               aria-label="Guest Nickname"
               autoComplete="nickname"
-              className="brand-input auth-input"
-              style={{ textAlign: 'center', fontSize: '17px', fontWeight: 600 }}
+              className="brand-input auth-input auth-nickname-input"
+              style={{ fontSize: '17px', fontWeight: 600 }}
               disabled={isLoading}
             />
             <button
@@ -264,7 +261,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               title="Generate random nickname"
               aria-label="Generate random nickname"
             >
-              <Dices size={16} /> Randomize
+              <Dices size={16} /> <span className="auth-input-inline-action__label">Randomize</span>
             </button>
           </div>
 
@@ -353,7 +350,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               className="password-toggle-btn"
               onClick={() => setShowLoginPassword(p => !p)}
               aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
             >
               {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -462,7 +458,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               className="password-toggle-btn"
               onClick={() => setShowRegPassword(p => !p)}
               aria-label={showRegPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
             >
               {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>

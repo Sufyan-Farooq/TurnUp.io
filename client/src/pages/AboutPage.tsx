@@ -17,24 +17,24 @@ interface FaqItem {
 
 const faqs: FaqItem[] = [
   {
-    q: 'Is turnUp.io completely free to play?',
-    a: 'Yes, 100% free! There are no paywalls, no subscriptions, no pay-to-win microtransactions, and no intrusive video popups.',
+    q: 'Does TurnUp require a paid plan?',
+    a: 'The current experience has no paid tiers or in-app purchase flow. If availability or pricing changes, we’ll update this page.',
   },
   {
     q: 'Do my friends need to register or download an app?',
-    a: 'No! TurnUp runs entirely in the modern web browser (iOS Safari, Android Chrome, Mac, Windows, Linux). Anyone with the link can join instantly as a guest in under 10 seconds.',
+    a: 'No account or installation is required to play as a guest. Enter a nickname, then join using a room invite in a supported web browser.',
   },
   {
     q: 'Can we play across different devices (cross-platform)?',
-    a: 'Absolutely. One friend can be on an iPhone, another on an Android tablet, and two others on Mac or Windows laptops. The Game Kit interface automatically adapts to every screen size.',
+    a: 'TurnUp supports desktop and mobile browser layouts. Board controls and rendering can vary with your device and browser.',
   },
   {
     q: 'What happens if a player disconnects mid-game?',
-    a: 'Our server maintains an encrypted session token in your browser. If you reload your tab or switch Wi-Fi networks, you will automatically reconnect and resume your active position without losing turns.',
+    a: 'The app stores room-session credentials in your browser and can try to restore your place after a disconnect. Rejoining depends on the room and session still being available; if they have ended or expired, you may need a new invite.',
   },
   {
     q: 'How many players can join a single game room?',
-    a: 'Active player counts depend on the game type: Ludo supports 2–4 players, UNO supports 2–6 players, Monopoly supports 2–6 players, and Snakes & Ladders supports 2–6 players. Unlimited additional friends can join as spectators!',
+    a: 'Active-player limits depend on the game and are shown in its lobby settings. Rooms can also admit spectators while a match is in progress.',
   },
   {
     q: 'How does vote-kicking work for AFK or absent players?',
@@ -56,7 +56,7 @@ export const AboutPage: React.FC = () => {
   return (
     <LegalLayout
       title="About turnUp.io"
-      subtitle="Turning any group chat into game night in under sixty seconds."
+      subtitle="Bring your group together for Ludo, UNO, Monopoly, and Snakes & Ladders in the browser."
       badge="Our Mission"
       lastUpdated="September 2026"
       toc={toc}
@@ -69,10 +69,10 @@ export const AboutPage: React.FC = () => {
             Everyone has that group chat. The college friends scattered across three time zones. The cousins who live in different cities. The coworkers who want to unwind on Friday evening.
           </p>
           <p>
-            You want to play a game together, but someone doesn&rsquo;t have the 2GB app installed. Someone else forgot their app store password. Another app forces everyone through four video ads and a paid subscription prompt before you even see a board.
+            Getting everyone together should be the easy part. TurnUp brings familiar games, room chat, and shared turns into one browser-based table.
           </p>
           <p>
-            <strong>We built turnUp.io to eliminate all of that.</strong>
+            <strong>We built turnUp.io to make game night easier to start and more fun to share.</strong>
           </p>
           <div
             style={{
@@ -93,7 +93,7 @@ export const AboutPage: React.FC = () => {
                 margin: 0,
               }}
             >
-              &ldquo;Turn any group chat into game night in under sixty seconds.&rdquo;
+              &ldquo;Your people, your table, your game night.&rdquo;
             </p>
             <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'var(--gold, #f0bc64)', fontFamily: "'Space Mono', monospace" }}>
               — The TurnUp Design Manifesto
@@ -125,7 +125,7 @@ export const AboutPage: React.FC = () => {
                 <Users size={18} /> Chat is the Living Room
               </div>
               <p style={{ margin: 0, fontSize: '14px', color: 'var(--cloud-dim, #d5dcd8)', lineHeight: 1.6 }}>
-                Conversation isn&rsquo;t an afterthought bolted onto the side. Real-time room chat, match activity logs, and live reactions make it feel like everyone is sitting at the same kitchen table.
+                Conversation stays close to the game. Room chat and match activity help everyone follow what&rsquo;s happening between turns.
               </p>
             </div>
             <div className="legal-card">
@@ -133,7 +133,7 @@ export const AboutPage: React.FC = () => {
                 <Cpu size={18} /> Real-Time WebSocket Engine
               </div>
               <p style={{ margin: 0, fontSize: '14px', color: 'var(--cloud-dim, #d5dcd8)', lineHeight: 1.6 }}>
-                Powered by high-frequency socket synchronization, server-authoritative state reconciliation, and 3D physics dice that roll simultaneously on every player&rsquo;s screen.
+                Room updates are synchronized live, and game actions are validated by the server so players share the same match state.
               </p>
             </div>
             <div className="legal-card">
@@ -151,7 +151,7 @@ export const AboutPage: React.FC = () => {
         <section id="tech" style={{ marginBottom: '56px' }}>
           <h2 className="legal-heading">Technology &amp; Craft</h2>
           <p>
-            turnUp.io is crafted as a high-performance modern web application:
+            turnUp.io is a browser-based application built with:
           </p>
           <ul>
             <li><strong>Frontend:</strong> React 19, TypeScript, Vite, CSS custom properties, and SVG vector graphics.</li>
@@ -179,7 +179,11 @@ export const AboutPage: React.FC = () => {
                   }}
                 >
                   <button
+                    id={`faq-question-${index}`}
+                    type="button"
                     onClick={() => toggleFaq(index)}
+                    aria-expanded={isOpen}
+                    aria-controls={`faq-answer-${index}`}
                     style={{
                       width: '100%',
                       padding: '16px 20px',
@@ -204,20 +208,22 @@ export const AboutPage: React.FC = () => {
                       <ChevronDown size={18} style={{ color: 'var(--muted, #aebfc2)', flexShrink: 0 }} />
                     )}
                   </button>
-                  {isOpen && (
-                    <div
-                      style={{
+                  <div
+                    id={`faq-answer-${index}`}
+                    role="region"
+                    aria-labelledby={`faq-question-${index}`}
+                    hidden={!isOpen}
+                    style={{
                         padding: '0 20px 18px',
                         fontSize: '14px',
                         lineHeight: 1.65,
                         color: 'var(--cloud-dim, #d5dcd8)',
                         borderTop: '1px solid rgba(244, 240, 231, 0.06)',
                         paddingTop: '14px',
-                      }}
-                    >
-                      {faq.a}
-                    </div>
-                  )}
+                    }}
+                  >
+                    {faq.a}
+                  </div>
                 </div>
               );
             })}

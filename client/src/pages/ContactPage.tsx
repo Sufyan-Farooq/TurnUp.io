@@ -132,10 +132,11 @@ export const ContactPage: React.FC = () => {
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
+                    <label htmlFor="contact-name" style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
                       Your Name
                     </label>
                     <input
+                      id="contact-name"
                       type="text"
                       required
                       placeholder="e.g. Alex Miller"
@@ -157,10 +158,11 @@ export const ContactPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
+                    <label htmlFor="contact-email" style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
                       Your Email
                     </label>
                     <input
+                      id="contact-email"
                       type="email"
                       required
                       placeholder="alex@example.com"
@@ -183,10 +185,11 @@ export const ContactPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
+                  <label htmlFor="contact-category" style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
                     Inquiry Category
                   </label>
                   <select
+                    id="contact-category"
                     value={formData.category}
                     onChange={e => setFormData({ ...formData, category: e.target.value })}
                     style={{
@@ -211,10 +214,11 @@ export const ContactPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
+                  <label htmlFor="contact-message" style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--cloud-dim, #d5dcd8)' }}>
                     Message
                   </label>
                   <textarea
+                    id="contact-message"
                     required
                     rows={5}
                     placeholder="Tell us what happened or how we can help..."

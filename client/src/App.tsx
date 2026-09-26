@@ -46,20 +46,39 @@ import {
 
 import { getValidAppearanceColors } from './theme/playerColors';
 
-import { SnakesLaddersBoard, type SnakesLaddersGameState } from './features/games/snakes-ladders/SnakesLaddersBoard';
-import { SnakesLaddersActionBar } from './features/games/snakes-ladders/SnakesLaddersActionBar';
-import { LudoBoard, type LudoGameState } from './features/games/ludo/LudoBoard';
-import { LudoActionBar } from './features/games/ludo/LudoActionBar';
-import { UnoBoard } from './features/games/uno/UnoBoard';
-import { UnoHand } from './features/games/uno/UnoHand';
-import { UnoActionBar } from './features/games/uno/UnoActionBar';
-import { UnoColorPicker } from './features/games/uno/UnoColorPicker';
+import type { SnakesLaddersGameState } from './features/games/snakes-ladders/SnakesLaddersBoard';
+import type { LudoGameState } from './features/games/ludo/LudoBoard';
 import type { UnoCard, UnoColor, UnoGameStateLike, UnoRoomLike } from './features/games/uno/uno.types';
-import { MonopolyBoard } from './features/games/monopoly/MonopolyBoard';
-import { MonopolySidebar } from './features/games/monopoly/MonopolySidebar';
-import { TradeModal } from './features/games/monopoly/TradeModal';
 import type { MonopolyGameState, MonopolyRoom, TradeSide } from './features/games/monopoly/types';
 import type { GameRoom } from './features/games/types';
+
+const SnakesLaddersBoard = lazy(() => import('./features/games/snakes-ladders/SnakesLaddersBoard').then(m => ({ default: m.SnakesLaddersBoard })));
+const SnakesLaddersActionBar = lazy(() => import('./features/games/snakes-ladders/SnakesLaddersActionBar').then(m => ({ default: m.SnakesLaddersActionBar })));
+const LudoBoard = lazy(() => import('./features/games/ludo/LudoBoard').then(m => ({ default: m.LudoBoard })));
+const LudoActionBar = lazy(() => import('./features/games/ludo/LudoActionBar').then(m => ({ default: m.LudoActionBar })));
+const UnoBoard = lazy(() => import('./features/games/uno/UnoBoard').then(m => ({ default: m.UnoBoard })));
+const UnoHand = lazy(() => import('./features/games/uno/UnoHand').then(m => ({ default: m.UnoHand })));
+const UnoActionBar = lazy(() => import('./features/games/uno/UnoActionBar').then(m => ({ default: m.UnoActionBar })));
+const UnoColorPicker = lazy(() => import('./features/games/uno/UnoColorPicker').then(m => ({ default: m.UnoColorPicker })));
+const MonopolyBoard = lazy(() => import('./features/games/monopoly/MonopolyBoard').then(m => ({ default: m.MonopolyBoard })));
+const MonopolySidebar = lazy(() => import('./features/games/monopoly/MonopolySidebar').then(m => ({ default: m.MonopolySidebar })));
+const TradeModal = lazy(() => import('./features/games/monopoly/TradeModal').then(m => ({ default: m.TradeModal })));
+
+const GameChunkFallback = () => (
+  <div
+    role="status"
+    style={{
+      display: 'grid',
+      placeItems: 'center',
+      minHeight: '160px',
+      color: 'var(--cloud-dim, #d5dcd8)',
+      fontFamily: "'Manrope', sans-serif",
+      fontSize: '14px',
+    }}
+  >
+    Loading game…
+  </div>
+);
 
 const DICE_ROLL_MIN_MS = 720;
 
@@ -975,7 +994,7 @@ export default function App() {
             <div
               className={`game-board-content ${showAppearancePicker ? 'is-obscured' : ''}`}
             >
-              {renderBoard()}
+              <Suspense fallback={<GameChunkFallback />}>{renderBoard()}</Suspense>
             </div>
 
             {showAppearancePicker && (
@@ -1001,7 +1020,7 @@ export default function App() {
           {/* Action zone (Monopoly keeps its controls inside the board's center panel) */}
           {!isMonopoly && (
             <div className="game-action-dock game-action-dock--mobile">
-              {renderActionBar()}
+              <Suspense fallback={null}>{renderActionBar()}</Suspense>
             </div>
           )}
         </main>
@@ -1047,22 +1066,24 @@ export default function App() {
               onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
             />
           ) : isMonopoly ? (
-            <MonopolySidebar
-              gameState={gameStateForBoard as unknown as MonopolyGameState}
-              room={room as unknown as MonopolyRoom}
-              currentUserId={playerId}
-              onMortgage={i => game.sendGameAction('MORTGAGE', { spaceIndex: i, tileIndex: i })}
-              onUnmortgage={i => game.sendGameAction('UNMORTGAGE', { spaceIndex: i, tileIndex: i })}
-              onBuildHouse={i => game.sendGameAction('BUILD_HOUSE', { spaceIndex: i, tileIndex: i })}
-              onSellHouse={i => game.sendGameAction('SELL_HOUSE', { spaceIndex: i, tileIndex: i })}
-              onOpenTradeWith={targetId => {
-                setTradeModalTargetId(targetId);
-                setTradeModalInitialRequestProp(null);
-              }}
-              voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
-              voteKickCountdown={voteKickCountdown}
-              onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
-            />
+            <Suspense fallback={<GameChunkFallback />}>
+              <MonopolySidebar
+                gameState={gameStateForBoard as unknown as MonopolyGameState}
+                room={room as unknown as MonopolyRoom}
+                currentUserId={playerId}
+                onMortgage={i => game.sendGameAction('MORTGAGE', { spaceIndex: i, tileIndex: i })}
+                onUnmortgage={i => game.sendGameAction('UNMORTGAGE', { spaceIndex: i, tileIndex: i })}
+                onBuildHouse={i => game.sendGameAction('BUILD_HOUSE', { spaceIndex: i, tileIndex: i })}
+                onSellHouse={i => game.sendGameAction('SELL_HOUSE', { spaceIndex: i, tileIndex: i })}
+                onOpenTradeWith={targetId => {
+                  setTradeModalTargetId(targetId);
+                  setTradeModalInitialRequestProp(null);
+                }}
+                voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
+                voteKickCountdown={voteKickCountdown}
+                onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
+              />
+            </Suspense>
           ) : (
             <ActivePlayersPanel
               players={room.players}
@@ -1080,7 +1101,7 @@ export default function App() {
           )}</div>
 
           {!inLobby && !isMonopoly && !roomApi.isSpectator && (
-            <div className="game-action-dock game-action-dock--rail">{renderActionBar()}</div>
+            <div className="game-action-dock game-action-dock--rail"><Suspense fallback={null}>{renderActionBar()}</Suspense></div>
           )}
 
           <div className="room-rail__secondary">
@@ -1115,14 +1136,16 @@ export default function App() {
         </div>
 
         {/* Overlays */}
-        <UnoColorPicker
-          isOpen={showColorPicker}
-          onSelectColor={handleSelectWildColor}
-          onCancel={() => {
-            setShowColorPicker(false);
-            setPendingWildCardIndices(null);
-          }}
-        />
+        <Suspense fallback={null}>
+          <UnoColorPicker
+            isOpen={showColorPicker}
+            onSelectColor={handleSelectWildColor}
+            onCancel={() => {
+              setShowColorPicker(false);
+              setPendingWildCardIndices(null);
+            }}
+          />
+        </Suspense>
 
         <MobileLogDrawer
           isOpen={isDrawerOpen}
@@ -1132,27 +1155,29 @@ export default function App() {
         />
 
         {isMonopoly && (
-          <TradeModal
-            gameState={gameStateForBoard as unknown as MonopolyGameState}
-            room={room as unknown as MonopolyRoom}
-            currentUserId={playerId}
-            targetPlayerId={tradeModalTargetId}
-            initialRequestedProp={tradeModalInitialRequestProp}
-            onCloseConstructor={() => {
-              setTradeModalTargetId(null);
-              setTradeModalInitialRequestProp(null);
-            }}
-            onInitiateTrade={(targetPlayerId: string, offer: TradeSide, request: TradeSide) => {
-              game.sendGameAction('INITIATE_TRADE', { targetPlayerId, offer, request });
-              setTradeModalTargetId(null);
-              setTradeModalInitialRequestProp(null);
-            }}
-            onCounterTrade={(offer: TradeSide, request: TradeSide) => {
-              game.sendGameAction('COUNTER_TRADE', { offer, request });
-            }}
-            onAcceptTrade={() => game.sendGameAction('ACCEPT_TRADE')}
-            onRejectTrade={() => game.sendGameAction('REJECT_TRADE')}
-          />
+          <Suspense fallback={null}>
+            <TradeModal
+              gameState={gameStateForBoard as unknown as MonopolyGameState}
+              room={room as unknown as MonopolyRoom}
+              currentUserId={playerId}
+              targetPlayerId={tradeModalTargetId}
+              initialRequestedProp={tradeModalInitialRequestProp}
+              onCloseConstructor={() => {
+                setTradeModalTargetId(null);
+                setTradeModalInitialRequestProp(null);
+              }}
+              onInitiateTrade={(targetPlayerId: string, offer: TradeSide, request: TradeSide) => {
+                game.sendGameAction('INITIATE_TRADE', { targetPlayerId, offer, request });
+                setTradeModalTargetId(null);
+                setTradeModalInitialRequestProp(null);
+              }}
+              onCounterTrade={(offer: TradeSide, request: TradeSide) => {
+                game.sendGameAction('COUNTER_TRADE', { offer, request });
+              }}
+              onAcceptTrade={() => game.sendGameAction('ACCEPT_TRADE')}
+              onRejectTrade={() => game.sendGameAction('REJECT_TRADE')}
+            />
+          </Suspense>
         )}
 
         {voteKickState && isVoteKickModalOpen && (

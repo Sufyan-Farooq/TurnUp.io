@@ -1,41 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <defs>
-    <linearGradient id="tu-fav-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#192e3e"/>
-      <stop offset="100%" stop-color="#0a151f"/>
-    </linearGradient>
-    <linearGradient id="tu-fav-gold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffe39b"/>
-      <stop offset="45%" stop-color="#f0bc64"/>
-      <stop offset="100%" stop-color="#cf8a28"/>
-    </linearGradient>
-    <linearGradient id="tu-fav-teal" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#80dfcf"/>
-      <stop offset="100%" stop-color="#4aa896"/>
-    </linearGradient>
-    <linearGradient id="tu-fav-coral" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ff7d86"/>
-      <stop offset="100%" stop-color="#e84c56"/>
-    </linearGradient>
-    <filter id="tu-fav-shadow" x="-15%" y="-15%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.45"/>
-    </filter>
-  </defs>
-
-  <!-- Deep Felt Token Base with Machined Bezel -->
-  <rect x="2.5" y="2.5" width="59" height="59" rx="16" fill="url(#tu-fav-bg)" stroke="#f0bc64" stroke-width="2" stroke-opacity="0.45"/>
-  <rect x="5.5" y="5.5" width="53" height="53" rx="13" fill="none" stroke="#f4f0e7" stroke-width="1" stroke-opacity="0.09"/>
-
-  <!-- Dynamic Sweeping Turn-Up Loop -->
-  <path d="M 18 36 C 18 44 24 49 32 49 C 41 49 48 43 48 33 C 48 21 37 15 25 15"
-        stroke="url(#tu-fav-gold)" stroke-width="4.8" stroke-linecap="round" fill="none" filter="url(#tu-fav-shadow)"/>
-
-  <!-- Upward Launch Arrowhead -->
-  <path d="M 32 9 L 23 15 L 30 22"
-        stroke="url(#tu-fav-gold)" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-
-  <!-- Three Semantic Player Token Pips (Gold, Teal, Coral) -->
-  <circle cx="32" cy="33" r="4.2" fill="url(#tu-fav-gold)" stroke="#0a151f" stroke-width="1.2"/>
-  <circle cx="23" cy="27" r="3.4" fill="url(#tu-fav-teal)" stroke="#0a151f" stroke-width="1.2"/>
-  <circle cx="40" cy="25" r="3.4" fill="url(#tu-fav-coral)" stroke="#0a151f" stroke-width="1.2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#132532" stroke="#f0bc64" stroke-width="2"/>
+  <path d="M16 35v4c0 6.075 4.925 11 11 11h8c7.18 0 13-5.82 13-13V21" stroke="#f0bc64" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m41 28 7-8 7 8" stroke="#f0bc64" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="16" cy="31" r="4" fill="#73bbaa" stroke="#132532" stroke-width="2"/>
 </svg>

@@ -22,6 +22,7 @@ export const PrivacyPage: React.FC = () => {
       subtitle="How we collect, store, and protect your data while you play."
       badge="Privacy & Data Protection"
       lastUpdated="September 26, 2026"
+      dateLabel="Draft dated"
       toc={toc}
     >
       <div className="legal-prose">

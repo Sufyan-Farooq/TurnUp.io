@@ -23,6 +23,7 @@ export const TermsPage: React.FC = () => {
       subtitle="The rules of the table: how we ensure fair, friendly, and reliable game nights for everyone."
       badge="Legal Agreement"
       lastUpdated="September 26, 2026"
+      dateLabel="Draft dated"
       toc={toc}
     >
       <div className="legal-prose">

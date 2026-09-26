@@ -20,88 +20,16 @@ export const TurnUpMarkSvg: React.FC<{ size?: number; className?: string }> = ({
   className = '',
 }) => {
   return (
-    <svg
+    <img
+      src="/favicon.svg"
       width={size}
       height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
       className={className}
+      alt=""
+      draggable={false}
       aria-hidden="true"
-      style={{ display: 'block', flexShrink: 0 }}
-    >
-      <defs>
-        <linearGradient id="tu-mark-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#192e3e" />
-          <stop offset="100%" stopColor="#0a151f" />
-        </linearGradient>
-        <linearGradient id="tu-mark-gold" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ffe39b" />
-          <stop offset="45%" stopColor="#f0bc64" />
-          <stop offset="100%" stopColor="#cf8a28" />
-        </linearGradient>
-        <linearGradient id="tu-mark-teal" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#80dfcf" />
-          <stop offset="100%" stopColor="#4aa896" />
-        </linearGradient>
-        <linearGradient id="tu-mark-coral" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ff7d86" />
-          <stop offset="100%" stopColor="#e84c56" />
-        </linearGradient>
-        <filter id="tu-mark-shadow" x="-15%" y="-15%" width="130%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.45" />
-        </filter>
-      </defs>
-
-      {/* Outer Felt Gaming Token */}
-      <rect
-        x="2.5"
-        y="2.5"
-        width="59"
-        height="59"
-        rx="16"
-        fill="url(#tu-mark-bg)"
-        stroke="#f0bc64"
-        strokeWidth="2"
-        strokeOpacity="0.45"
-      />
-      <rect
-        x="5.5"
-        y="5.5"
-        width="53"
-        height="53"
-        rx="13"
-        fill="none"
-        stroke="#f4f0e7"
-        strokeWidth="1"
-        strokeOpacity="0.09"
-      />
-
-      {/* Dynamic Sweeping Turn-Up Loop */}
-      <path
-        d="M 18 36 C 18 44 24 49 32 49 C 41 49 48 43 48 33 C 48 21 37 15 25 15"
-        stroke="url(#tu-mark-gold)"
-        strokeWidth="4.8"
-        strokeLinecap="round"
-        fill="none"
-        filter="url(#tu-mark-shadow)"
-      />
-
-      {/* Upward Launch Arrowhead */}
-      <path
-        d="M 32 9 L 23 15 L 30 22"
-        stroke="url(#tu-mark-gold)"
-        strokeWidth="4.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-
-      {/* Three Semantic Player Token Pips (Gold, Teal, Coral) */}
-      <circle cx="32" cy="33" r="4.2" fill="url(#tu-mark-gold)" stroke="#0a151f" strokeWidth="1.2" />
-      <circle cx="23" cy="27" r="3.4" fill="url(#tu-mark-teal)" stroke="#0a151f" strokeWidth="1.2" />
-      <circle cx="40" cy="25" r="3.4" fill="url(#tu-mark-coral)" stroke="#0a151f" strokeWidth="1.2" />
-    </svg>
+      style={{ display: 'block', flexShrink: 0, objectFit: 'contain' }}
+    />
   );
 };
 

@@ -17,6 +17,7 @@ export const CookiePage: React.FC = () => {
       subtitle="Complete transparency about how turnUp.io stores session data in your browser."
       badge="Storage Policy"
       lastUpdated="September 2026"
+      dateLabel="Draft dated"
       toc={toc}
     >
       <div className="legal-prose">
