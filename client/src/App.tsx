@@ -1028,7 +1028,7 @@ export default function App() {
         {/* Right sidebar */}
         <div
           id="desktop-sidebar"
-          className={`game-sidebar ${isRightSidebarOpen ? 'open' : ''}`}
+          className={`game-sidebar ${inLobby ? 'game-sidebar--lobby' : ''} ${isRightSidebarOpen ? 'open' : ''}`}
           role={isRightSidebarOpen ? 'dialog' : 'complementary'}
           aria-modal={isRightSidebarOpen ? 'true' : undefined}
           aria-label={inLobby ? 'Lobby controls' : 'Game details'}

@@ -59,12 +59,13 @@ test('stacked pawns have distinct positions for two, three, and four tokens', ()
   }
 });
 
-test('track tiles align to the actual path tangent at every turn', () => {
-  for (let position = 0; position < 78; position++) {
-    const previous = sixTrackCenter(position - 1);
-    const next = sixTrackCenter(position + 1);
-    const tangent = Math.atan2(next.y - previous.y, next.x - previous.x) * 180 / Math.PI;
-    assert.ok(Math.abs(parseFloat(sixTrackTileAngle(position)) - tangent) < 0.001);
+test('track tiles stay aligned with their arm through the outer turns', () => {
+  const arms = [-90, -30, 30, 90, 150, 210];
+  for (let seat = 0; seat < 6; seat++) {
+    for (let step = 0; step < 13; step++) {
+      const expected = step < 6 ? arms[seat] : step === 6 ? arms[seat] + 30 : arms[(seat + 1) % 6];
+      assert.equal(sixTrackTileAngle(seat * 13 + step), `${expected}deg`);
+    }
   }
 });
 

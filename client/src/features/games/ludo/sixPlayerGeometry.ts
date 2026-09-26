@@ -63,13 +63,15 @@ export function sixTrackCenter(position: number) {
   }
 }
 
-/** Follow the actual path tangent so every tile sits squarely on its lane. */
+/** Keep each square aligned to its arm instead of twisting it toward a turn. */
 export function sixTrackTileAngle(position: number) {
   const normalized = ((position % 78) + 78) % 78;
-  const previous = sixTrackCenter(normalized - 1);
-  const next = sixTrackCenter(normalized + 1);
-  const tangent = Math.atan2(next.y - previous.y, next.x - previous.x) * 180 / Math.PI;
-  return `${tangent}deg`;
+  const sector = Math.floor(normalized / 13);
+  const step = normalized % 13;
+  const arm = SIX_SEAT_ANGLES[sector];
+  if (step < 6) return `${arm}deg`;
+  if (step === 6) return `${arm + 30}deg`;
+  return `${SIX_SEAT_ANGLES[(sector + 1) % 6]}deg`;
 }
 
 export function sixLaneTileAngle(seat: number) {

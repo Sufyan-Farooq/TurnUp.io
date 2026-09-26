@@ -116,6 +116,7 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
         {onClose && <button type="button" className="waiting-room-close" onClick={onClose} aria-label="Close lobby settings"><X size={18} /></button>}
       </header>
 
+      <div className="waiting-room-scroll lobby-settings-scroll" role="region" aria-label="Players and match settings" tabIndex={0}>
       <section className="lobby-player-section" aria-labelledby="lobby-player-heading">
         <div className="lobby-section-heading"><h3 id="lobby-player-heading">Players</h3><span>{players.length}/{settings.maxPlayers}</span></div>
         <div className="lobby-player-list">
@@ -239,7 +240,7 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
         </div>
       </section>
 
-      <div className="lobby-settings-scroll waiting-room-settings">
+      <div className="waiting-room-settings">
         <section aria-labelledby="match-settings-heading">
           <div className="lobby-section-heading">
             <h3 id="match-settings-heading">Match</h3>
@@ -286,6 +287,7 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
             <ToggleRow id="card-doubles" label="Play matching doubles" description="Play two cards of the same value together when legal." checked={settings.cardDoubles} disabled={isEditingDisabled} onChange={value => update('cardDoubles', value)} />
           </section>
         )}
+      </div>
       </div>
 
       <footer className="waiting-room-footer">
