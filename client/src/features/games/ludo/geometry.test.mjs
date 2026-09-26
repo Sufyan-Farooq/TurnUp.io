@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getSixLudoCoords, sixTrackCenter, sixBaseCenter, sixTrackTileAngle, sixLaneTileAngle, SIX_BASE_SLOT_OFFSETS } from './sixPlayerGeometry.ts';
+import { getSixLudoCoords, isSixPlayerStarSpace, sixTrackCenter, sixBaseCenter, sixTrackTileAngle, sixLaneTileAngle, SIX_BASE_SLOT_OFFSETS } from './sixPlayerGeometry.ts';
 import { getTokenDestination, getTokenStackOffset } from './tokenPlacement.ts';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -59,11 +59,24 @@ test('stacked pawns have distinct positions for two, three, and four tokens', ()
   }
 });
 
-test('track and home-lane tiles rotate together around all six aligned arms', () => {
-  for (let seat = 0; seat < 6; seat++) {
-    assert.equal(sixTrackTileAngle(seat * 13), sixLaneTileAngle(seat));
-    assert.equal(sixTrackTileAngle(seat * 13 + 6), `${seat * 60 + 120}deg`);
+test('track tiles align to the actual path tangent at every turn', () => {
+  for (let position = 0; position < 78; position++) {
+    const previous = sixTrackCenter(position - 1);
+    const next = sixTrackCenter(position + 1);
+    const tangent = Math.atan2(next.y - previous.y, next.x - previous.x) * 180 / Math.PI;
+    assert.ok(Math.abs(parseFloat(sixTrackTileAngle(position)) - tangent) < 0.001);
   }
+});
+
+test('only the six reference star positions receive safe-space markers', () => {
+  for (let seat = 0; seat < 6; seat++) {
+    assert.equal(isSixPlayerStarSpace(seat * 13 + 8), true);
+    assert.equal(isSixPlayerStarSpace(seat * 13), false);
+    assert.equal(isSixPlayerStarSpace(seat * 13 + 9), false);
+    assert.equal(sixLaneTileAngle(seat), `${[-90, -30, 30, 90, 150, 210][seat] + 180}deg`);
+  }
+  assert.equal(isSixPlayerStarSpace(-1), false);
+  assert.equal(isSixPlayerStarSpace(78), false);
 });
 
 test('client move destinations follow the server path in four- and six-seat games', () => {

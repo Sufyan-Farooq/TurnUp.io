@@ -10,6 +10,12 @@ export const SIX_BASE_SLOT_OFFSETS = [
   { x: -29, y: 29 }, { x: 29, y: 29 },
 ] as const;
 
+export const SIX_PLAYER_SAFE_OFFSET = 8;
+
+export function isSixPlayerStarSpace(position: number) {
+  return position >= 0 && position < 78 && position % 13 === SIX_PLAYER_SAFE_OFFSET;
+}
+
 export function sixPolar(angle: number, radius: number) {
   const radians = angle * Math.PI / 180;
   return { x: 500 + Math.cos(radians) * radius, y: 500 + Math.sin(radians) * radius };
@@ -57,15 +63,13 @@ export function sixTrackCenter(position: number) {
   }
 }
 
-/** Rotation for square track tiles so diagonal arms read as continuous lanes. */
+/** Follow the actual path tangent so every tile sits squarely on its lane. */
 export function sixTrackTileAngle(position: number) {
   const normalized = ((position % 78) + 78) % 78;
-  const sector = Math.floor(normalized / 13);
-  const step = normalized % 13;
-  const arm = SIX_SEAT_ANGLES[sector] ?? SIX_SEAT_ANGLES[0];
-  const nextArm = SIX_SEAT_ANGLES[(sector + 1) % 6] ?? SIX_SEAT_ANGLES[0];
-  const laneAngle = step <= 5 ? arm : step === 6 ? arm + 30 : nextArm;
-  return `${laneAngle + 180}deg`;
+  const previous = sixTrackCenter(normalized - 1);
+  const next = sixTrackCenter(normalized + 1);
+  const tangent = Math.atan2(next.y - previous.y, next.x - previous.x) * 180 / Math.PI;
+  return `${tangent}deg`;
 }
 
 export function sixLaneTileAngle(seat: number) {

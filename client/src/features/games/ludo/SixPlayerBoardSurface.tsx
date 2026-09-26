@@ -1,6 +1,6 @@
 import React from 'react';
 import { getLudoColorName, getPlayerColorPalette } from '../../../theme/playerColors';
-import { getSixLudoCoords, sixBaseCenter, sixLaneTileAngle, sixPolar, sixTrackTileAngle, SIX_BASE_SLOT_OFFSETS, SIX_SEAT_ANGLES } from './sixPlayerGeometry';
+import { getSixLudoCoords, isSixPlayerStarSpace, sixBaseCenter, sixLaneTileAngle, sixPolar, sixTrackTileAngle, SIX_BASE_SLOT_OFFSETS, SIX_SEAT_ANGLES } from './sixPlayerGeometry';
 
 interface SixPlayerBoardSurfaceProps {
   activeSeat: number;
@@ -78,7 +78,7 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
       const coords = getSixLudoCoords(0, index, 0);
       const seat = Math.floor(index / 13);
       const isStart = index % 13 === 0;
-      const isSafe = index % 13 === 8;
+      const isSafe = isSixPlayerStarSpace(index);
       return (
         <div
           key={`track-${index}`}
@@ -89,10 +89,18 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
             '--seat-color': isStart ? seatColors[seat] : undefined,
             '--cell-angle': sixTrackTileAngle(index),
           } as React.CSSProperties}
-          title={isStart ? `${names[seat] || getLudoColorName(seat, 6)} Start (Space ${index + 1})` : isSafe ? `Safe Space ${index + 1}` : `Space ${index + 1}`}
+          title={isStart ? `${names[seat] || getLudoColorName(seat, 6)} safe start (Space ${index + 1})` : isSafe ? `Safe star space ${index + 1}` : `Space ${index + 1}`}
         >
-          {isStart && <span aria-hidden="true">★</span>}
-          {isSafe && <span aria-hidden="true">★</span>}
+          {(isStart || isSafe) && (
+            <svg
+              className="ludo-six-track-cell__star"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              style={{ color: isStart ? '#fff5dc' : '#44335c' }}
+            >
+              <path fill="currentColor" d="m12 1.8 2.9 6 6.6 1-4.8 4.7 1.1 6.6-5.8-3.1-5.8 3.1 1.1-6.6-4.8-4.7 6.6-1z" />
+            </svg>
+          )}
         </div>
       );
     })}
