@@ -20,6 +20,9 @@ export const CookiePage: React.FC = () => {
       toc={toc}
     >
       <div className="legal-prose">
+        <p role="note" style={{ padding: '14px 18px', borderRadius: 10, background: 'rgba(240,188,100,.1)', color: 'var(--cloud)' }}>
+          Draft for review: confirm the production storage behavior and hosting configuration before presenting this page as an official policy.
+        </p>
         {/* Intro Banner */}
         <section id="overview" style={{ marginBottom: '44px' }}>
           <div
@@ -36,8 +39,7 @@ export const CookiePage: React.FC = () => {
           >
             <ShieldCheck size={24} style={{ color: 'var(--violet, #52b5a2)', flexShrink: 0, marginTop: '2px' }} />
             <div style={{ fontSize: '14.5px', lineHeight: 1.6 }}>
-              <strong>The TL;DR:</strong> turnUp.io does <strong>not</strong> use advertising cookies, marketing pixels, or third-party cross-site trackers.
-              We only use browser <code>localStorage</code> for essential features like keeping you connected to your active board game if your page refreshes.
+              <strong>The TL;DR:</strong> the application uses browser <code>localStorage</code> for sign-in and room reconnection. It also requests its fonts from Google Fonts. No analytics or advertising SDK is configured in this codebase.
             </div>
           </div>
         </section>
@@ -72,24 +74,24 @@ export const CookiePage: React.FC = () => {
                     turnup_token
                   </td>
                   <td style={{ padding: '12px 14px' }}>Authentication</td>
-                  <td style={{ padding: '12px 14px' }}>Stores your secure session JWT so you remain authenticated across matches.</td>
-                  <td style={{ padding: '12px 14px' }}>Session / 30 days</td>
+                  <td style={{ padding: '12px 14px' }}>Stores a signed session JWT. It is not encrypted.</td>
+                  <td style={{ padding: '12px 14px' }}>Until sign out or cleared; token expires after 7 days</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid rgba(244, 240, 231, 0.08)' }}>
                   <td style={{ padding: '12px 14px', fontFamily: "'Space Mono', monospace", color: 'var(--cloud, #f4f0e7)' }}>
                     turnup_user
                   </td>
                   <td style={{ padding: '12px 14px' }}>Preferences</td>
-                  <td style={{ padding: '12px 14px' }}>Caches your chosen guest username and token color to save you typing each game.</td>
+                  <td style={{ padding: '12px 14px' }}>Caches your account or guest identity fields, including username and role.</td>
                   <td style={{ padding: '12px 14px' }}>Persistent</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid rgba(244, 240, 231, 0.08)' }}>
                   <td style={{ padding: '12px 14px', fontFamily: "'Space Mono', monospace", color: 'var(--cloud, #f4f0e7)' }}>
-                    turnup_room_[id]
+                    turnup_room_[playerId]
                   </td>
                   <td style={{ padding: '12px 14px' }}>Reconnection</td>
-                  <td style={{ padding: '12px 14px' }}>Remembers your active room ID to quickly rejoin if your browser tab reloads or closes.</td>
-                  <td style={{ padding: '12px 14px' }}>Match duration</td>
+                  <td style={{ padding: '12px 14px' }}>Stores the room ID for socket reconnection; a matching per-player token is stored under <code>turnup_token_[playerId]</code>.</td>
+                  <td style={{ padding: '12px 14px' }}>Until leaving the room, sign out, or clearing site storage</td>
                 </tr>
               </tbody>
             </table>
@@ -98,7 +100,7 @@ export const CookiePage: React.FC = () => {
 
         {/* Section 3: No Tracking */}
         <section id="no-tracking" style={{ marginBottom: '44px' }}>
-          <h2 className="legal-heading">3. Zero Third-Party Ad Trackers</h2>
+          <h2 className="legal-heading">3. Third-Party Requests</h2>
           <div
             style={{
               display: 'grid',
@@ -113,19 +115,19 @@ export const CookiePage: React.FC = () => {
               </div>
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: 'var(--cloud-dim, #d5dcd8)' }}>
                 <li>Keep your match connected</li>
-                <li>Store your volume &amp; theme choices</li>
+                <li>Cache your sign-in and room session</li>
                 <li>Verify your player move legitimacy</li>
               </ul>
             </div>
 
             <div className="legal-card" style={{ borderColor: 'rgba(255, 92, 102, 0.3)' }}>
               <div style={{ color: 'var(--coral, #FF5C66)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, marginBottom: '6px' }}>
-                <XCircle size={16} /> What We NEVER Do
+                <XCircle size={16} /> Not Configured in This App
               </div>
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: 'var(--cloud-dim, #d5dcd8)' }}>
-                <li>Track your browsing across other sites</li>
-                <li>Sell usage profiles to advertisers</li>
-                <li>Inject third-party ad networks</li>
+                <li>No analytics SDK is included in the client code</li>
+                <li>No advertising SDK is included in the client code</li>
+                <li>Google Fonts receives requests for the selected typefaces</li>
               </ul>
             </div>
           </div>

@@ -236,6 +236,10 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const activeTradeRef = useRef(activeTrade);
+  const onCloseConstructorRef = useRef(onCloseConstructor);
+  activeTradeRef.current = activeTrade;
+  onCloseConstructorRef.current = onCloseConstructor;
 
   const dialogOpen = !isMinimized && (!!activeTrade || !!targetPlayerId);
 
@@ -253,10 +257,10 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (activeTrade) {
+        if (activeTradeRef.current) {
           setIsMinimized(true);
         } else {
-          onCloseConstructor();
+          onCloseConstructorRef.current();
         }
         return;
       }
@@ -284,7 +288,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
       previousFocusRef.current?.focus();
     };
-  }, [dialogOpen, activeTrade, onCloseConstructor]);
+  }, [dialogOpen]);
 
   // Evaluate current condition match
   const conditionCheck = activeTrade ? checkTradeConditions(activeTrade, gameState) : { isValid: true };

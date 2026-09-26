@@ -131,6 +131,14 @@ export function validateTradeConditions(state: MonopolyState, trade: TradeOffer)
   const gss = state.gameSpecificState;
   if (!gss) return { canExecute: false, reason: 'Invalid game state.' };
 
+  const isValidCash = (amount: unknown) => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
+  if (!offer || !request || !isValidCash(offer.cash) || !isValidCash(request.cash)) {
+    return { canExecute: false, reason: 'Trade cash amounts must be finite, non-negative numbers.' };
+  }
+  if (!Array.isArray(offer.properties) || !Array.isArray(request.properties)) {
+    return { canExecute: false, reason: 'Trade properties must be valid lists.' };
+  }
+
   const cash = gss.cash || {};
   const bankrupt = gss.bankrupt || {};
   const properties = gss.properties || {};

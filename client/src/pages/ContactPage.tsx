@@ -9,7 +9,7 @@ const toc = [
 ];
 
 export const ContactPage: React.FC = () => {
-  const [submitted, setSubmitted] = useState(false);
+  const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,7 +20,14 @@ export const ContactPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) return;
-    setSubmitted(true);
+    const recipient = formData.category === 'Bug Report'
+      ? 'bugs@turnup.io'
+      : formData.category === 'Moderation or Safety Report'
+        ? 'safety@turnup.io'
+        : 'support@turnup.io';
+    const subject = `[TurnUp] ${formData.category}`;
+    const body = `Name: ${formData.name}\nReply to: ${formData.email}\nCategory: ${formData.category}\n\n${formData.message}`;
+    setDraftUrl(`mailto:${recipient}?${new URLSearchParams({ subject, body }).toString()}`);
   };
 
   return (
@@ -85,7 +92,7 @@ export const ContactPage: React.FC = () => {
         <section id="send-message" style={{ marginBottom: '48px' }}>
           <h2 className="legal-heading">Send Us a Message</h2>
           <p>
-            Fill out the form below and our team will get back to you within 24 hours.
+            Fill out the form to prepare an email in your email app. You can review it there before sending.
           </p>
 
           <div
@@ -97,19 +104,22 @@ export const ContactPage: React.FC = () => {
               marginTop: '20px',
             }}
           >
-            {submitted ? (
+            {draftUrl ? (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                 <CheckCircle size={48} style={{ color: 'var(--violet, #52b5a2)', margin: '0 auto 16px' }} />
                 <h3 style={{ fontFamily: "'Fredoka', sans-serif", fontSize: '24px', margin: '0 0 8px', color: 'var(--cloud, #f4f0e7)' }}>
-                  Message Received!
+                  Email draft ready
                 </h3>
                 <p style={{ color: 'var(--cloud-dim, #d5dcd8)', fontSize: '15px', maxWidth: '420px', margin: '0 auto 20px' }}>
-                  Thanks for reaching out, <strong>{formData.name}</strong>. We’ve logged your message and sent a confirmation to <strong>{formData.email}</strong>.
+                  Your message has not been sent or stored by TurnUp. Open the draft in your email app and send it when you’re ready.
                 </p>
+                <a href={draftUrl} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', borderRadius: 8, padding: '10px 22px' }}>
+                  <Mail size={15} /> Open email draft
+                </a>
                 <button
                   type="button"
                   onClick={() => {
-                    setSubmitted(false);
+                    setDraftUrl(null);
                     setFormData({ name: '', email: '', category: 'General Question', message: '' });
                   }}
                   className="btn-primary"
@@ -239,7 +249,7 @@ export const ContactPage: React.FC = () => {
                     cursor: 'pointer',
                   }}
                 >
-                  <Send size={15} /> Send Message
+                  <Send size={15} /> Prepare Email Draft
                 </button>
               </form>
             )}

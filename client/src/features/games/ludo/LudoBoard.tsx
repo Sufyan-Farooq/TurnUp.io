@@ -336,7 +336,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
       }
       return changed ? next : cur;
     });
-  }, [tokens, trackLength]);
+  }, [tokens, trackLength, room, gameState]);
 
   React.useEffect(() => {
     return () => {

@@ -9,10 +9,10 @@ const toc = [
   { id: 'cookies', title: '4. Cookies & Local Storage' },
   { id: 'sharing', title: '5. Data Sharing & Infrastructure' },
   { id: 'retention', title: '6. Retention & Erasure' },
-  { id: 'rights', title: '7. Your Privacy Rights (GDPR/CCPA)' },
+  { id: 'rights', title: '7. Privacy Requests' },
   { id: 'children', title: '8. Children’s Privacy' },
-  { id: 'security', title: '9. Security & Encryption' },
-  { id: 'contact', title: '10. Contact Privacy Officer' },
+  { id: 'security', title: '9. Security Practices' },
+  { id: 'contact', title: '10. Privacy Contact' },
 ];
 
 export const PrivacyPage: React.FC = () => {
@@ -25,6 +25,9 @@ export const PrivacyPage: React.FC = () => {
       toc={toc}
     >
       <div className="legal-prose">
+        <p role="note" style={{ padding: '14px 18px', borderRadius: 10, background: 'rgba(240,188,100,.1)', color: 'var(--cloud)' }}>
+          Draft for review: hosting providers, data retention, contact details, and privacy-law obligations must be confirmed by the service operator before this page is presented as an official policy.
+        </p>
         {/* Intro Callout */}
         <div
           style={{
@@ -41,8 +44,7 @@ export const PrivacyPage: React.FC = () => {
         >
           <Lock size={24} style={{ color: 'var(--gold, #f0bc64)', flexShrink: 0, marginTop: '2px' }} />
           <div style={{ fontSize: '14.5px', lineHeight: 1.6 }}>
-            <strong>Privacy by design:</strong> At turnUp.io, we believe you shouldn&rsquo;t have to hand over personal identity to play a game with friends.
-            We don&rsquo;t sell your data, we don&rsquo;t track you across the internet with behavioral advertising, and our default game mode doesn&rsquo;t even require an email address.
+            The app supports guest play without an email address and registered accounts with an email address. This page summarizes data flows visible in the current codebase.
           </div>
         </div>
 
@@ -64,7 +66,7 @@ export const PrivacyPage: React.FC = () => {
                 <EyeOff size={16} /> Guest Session Data
               </div>
               <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--cloud-dim, #d5dcd8)' }}>
-                Temporary guest username, randomly generated session ID, token color preference, and browser socket ID. No email, phone number, or personal identifiers.
+                Guest username and a temporary session ID are used to join rooms. Guest identities are not created as database user records.
               </p>
             </div>
             <div className="legal-card">
@@ -80,7 +82,7 @@ export const PrivacyPage: React.FC = () => {
                 <Database size={16} /> Gameplay Logs
               </div>
               <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--cloud-dim, #d5dcd8)' }}>
-                Move history, dice roll sequences, card plays, in-game match duration, and win/loss records. Used to render match replays and calculate game-end rankings.
+                Registered-player game totals and match results are stored for profiles. The current app does not provide saved move-by-move replays.
               </p>
             </div>
             <div className="legal-card">
@@ -88,7 +90,7 @@ export const PrivacyPage: React.FC = () => {
                 <KeyRound size={16} /> Technical Diagnostics
               </div>
               <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--cloud-dim, #d5dcd8)' }}>
-                IP address, user-agent (browser and operating system type), WebSocket latency ping, and crash/error reports to troubleshoot network disconnects.
+                The server writes operational events to its configured logs. Hosting providers may also process connection metadata needed to deliver the service; retention depends on the deployment.
               </p>
             </div>
           </div>
@@ -101,8 +103,8 @@ export const PrivacyPage: React.FC = () => {
           <ul>
             <li><strong>Room Synchronization:</strong> Relaying player dice rolls, pawn moves, card draws, and chat messages in real time across WebSockets.</li>
             <li><strong>Session Resilience:</strong> Allowing you to refresh your browser or recover from a momentary Wi-Fi drop without getting kicked from your match.</li>
-            <li><strong>Fair Play &amp; Security:</strong> Verifying legal moves, detecting automated bot scripts, preventing rate-limit abuse, and honoring vote-kick decisions.</li>
-            <li><strong>Platform Improvements:</strong> Monitoring server health, reducing latency spikes, and optimizing board performance on mobile devices.</li>
+            <li><strong>Fair Play &amp; Security:</strong> Verifying legal moves, limiting authentication requests, and applying room moderation actions.</li>
+            <li><strong>Profiles:</strong> Saving registered players&rsquo; match totals and results.</li>
           </ul>
         </section>
 
@@ -110,12 +112,12 @@ export const PrivacyPage: React.FC = () => {
         <section id="gameplay" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">3. Real-Time Gameplay &amp; Chat</h2>
           <p>
-            In-game chat messages are transmitted live over encrypted WebSockets to other active players in your specific game room.
+            In-game chat messages are broadcast live to members of your game room. Transport encryption depends on whether the deployment is served over HTTPS/WSS.
           </p>
           <ul>
             <li>In <strong>Private Rooms</strong>, chat is visible only to people who have the secret room code or direct link.</li>
             <li>In <strong>Public Rooms</strong>, chat is visible to all participants and active spectators in that room.</li>
-            <li>Chat messages are stored ephemerally in server memory for the duration of the match and are automatically flushed when the room closes. We do not permanently retain or sell private chat logs.</li>
+            <li>The game server broadcasts chat messages without saving a chat history. Messages remain in the open page&rsquo;s client state and are lost when that page session ends.</li>
           </ul>
         </section>
 
@@ -126,9 +128,9 @@ export const PrivacyPage: React.FC = () => {
             turnUp.io uses client-side <code>localStorage</code> instead of invasive tracking cookies. Specifically:
           </p>
           <ul>
-            <li><code>turnup_token</code>: An encrypted JSON Web Token that proves your identity to the game server.</li>
-            <li><code>turnup_user</code>: Your active username and avatar settings so you don&rsquo;t have to re-enter them every round.</li>
-            <li><code>turnup_room_[id]</code>: A room reconnection cache key to seamlessly resume your game if your browser tab reloads.</li>
+            <li><code>turnup_token</code> and <code>turnup_user</code>: Your signed session token and cached account or guest details. The token is signed, not encrypted, and expires after seven days.</li>
+            <li><code>turnup_token_[playerId]</code> and <code>turnup_room_[playerId]</code>: Per-player room reconnection credentials used by the socket client.</li>
+            <li>These values remain in local storage until sign out, leaving the room, or clearing this site&rsquo;s browser storage.</li>
           </ul>
           <p>
             We do NOT use third-party marketing cookies, Google AdSense trackers, Facebook tracking pixels, or cross-site behavioral telemetry.
@@ -139,12 +141,10 @@ export const PrivacyPage: React.FC = () => {
         <section id="sharing" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">5. Data Sharing &amp; Infrastructure</h2>
           <p>
-            We will never sell, rent, or trade your personal information. We share minimal telemetry only with trusted infrastructure providers who help us host turnUp.io:
+            The application uses a database for registered accounts and match results, and hosting services may process connection data to run the deployment. The specific providers and their retention depend on where the service is hosted.
           </p>
           <ul>
-            <li><strong>Cloud Hosting &amp; Edge Network:</strong> High-performance server infrastructure for running Node.js / WebSocket game loops.</li>
-            <li><strong>Database Hosting:</strong> Encrypted databases for registered account persistence.</li>
-            <li><strong>Legal Compliance:</strong> If required by law, court order, or governmental authority to protect life, public safety, or national security.</li>
+            <li>Information may be disclosed when required by applicable law.</li>
           </ul>
         </section>
 
@@ -152,24 +152,21 @@ export const PrivacyPage: React.FC = () => {
         <section id="retention" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">6. Retention &amp; Erasure</h2>
           <p>
-            Guest sessions and in-game chat messages are ephemeral and purged upon game completion or after 24 hours of room inactivity.
+            Guest identities are signed into temporary sessions and are not inserted into the registered-user database. Chat is not stored by the game server. Registered account records and match results remain in the database; room cleanup timing depends on server configuration.
           </p>
           <p>
-            If you have a registered account, your profile data remains stored until you request deletion. You may delete your account at any time by contacting our privacy desk.
+            The current app does not include a self-service account deletion control. For access, correction, or deletion requests, contact the service operator using the address below.
           </p>
         </section>
 
         {/* Section 7 */}
         <section id="rights" style={{ marginBottom: '44px' }}>
-          <h2 className="legal-heading">7. Your Privacy Rights (GDPR &amp; CCPA)</h2>
+          <h2 className="legal-heading">7. Privacy Requests</h2>
           <p>
-            Regardless of your country of residence, we uphold the highest standards of data rights under the European Union General Data Protection Regulation (GDPR) and the California Consumer Privacy Act (CCPA):
+            Depending on where you live, privacy laws may provide rights over your personal information. Contact the service operator to submit an access, correction, or deletion request.
           </p>
           <ul>
-            <li><strong>Right to Access:</strong> You can request a full machine-readable copy of any personal data we hold about you.</li>
-            <li><strong>Right to Rectification:</strong> You can update or correct your username and account credentials.</li>
-            <li><strong>Right to Erasure (&ldquo;Right to be Forgotten&rdquo;):</strong> You can request complete deletion of your account and all associated match history.</li>
-            <li><strong>Right to Non-Discrimination:</strong> You receive the identical game experience and features regardless of exercising your privacy rights.</li>
+            <li>Requests will be reviewed and handled as required by applicable law.</li>
           </ul>
         </section>
 
@@ -177,28 +174,28 @@ export const PrivacyPage: React.FC = () => {
         <section id="children" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">8. Children’s Privacy</h2>
           <p>
-            turnUp.io does not knowingly collect personal information from children under the age of 13. If you are a parent or guardian and discover that your child has provided us with personal data without your consent, please contact us immediately, and we will purge that information from our records.
+            The service is not designed specifically for children. If you have a concern about a child&rsquo;s account or information, contact the service operator using the address below.
           </p>
         </section>
 
         {/* Section 9 */}
         <section id="security" style={{ marginBottom: '44px' }}>
-          <h2 className="legal-heading">9. Security &amp; Encryption</h2>
+          <h2 className="legal-heading">9. Security Practices</h2>
           <p>
             We implement robust security practices to safeguard player data:
           </p>
           <ul>
-            <li>All client-to-server traffic is encrypted using modern TLS (HTTPS) and Secure WebSockets (WSS).</li>
-            <li>User passwords are encrypted with industry-standard bcrypt hashing with adaptive salt rounds.</li>
+            <li>Production transport encryption depends on the hosting configuration; the application should be served over HTTPS/WSS.</li>
+            <li>Registered account passwords are hashed with Node.js scrypt and a random salt. Passwords are not stored in plain text.</li>
             <li>Room instances are isolated in memory to prevent cross-room data leakage.</li>
           </ul>
         </section>
 
         {/* Section 10 */}
         <section id="contact" style={{ marginBottom: '20px' }}>
-          <h2 className="legal-heading">10. Contact Privacy Officer</h2>
+          <h2 className="legal-heading">10. Privacy Contact</h2>
           <p>
-            For any privacy inquiries, data deletion requests, or regulatory questions, please contact our Data Protection desk:
+            For privacy questions or account data requests, contact the service operator:
           </p>
           <div
             style={{
@@ -212,8 +209,6 @@ export const PrivacyPage: React.FC = () => {
             }}
           >
             Email: <a href="mailto:privacy@turnup.io" style={{ color: 'var(--violet, #52b5a2)' }}>privacy@turnup.io</a>
-            <br />
-            Data Protection: <span style={{ color: 'var(--cloud, #f4f0e7)' }}>turnUp.io Trust &amp; Safety</span>
           </div>
         </section>
       </div>

@@ -122,6 +122,45 @@ describe('MonopolyRuleset.processAction', () => {
       expect(counterRes.events.some(e => e.type === 'TRADE_COUNTERED')).toBe(true);
     });
 
+    it('rejects negative and non-finite cash on both new and counter offers', () => {
+      const ruleset = new MonopolyRuleset();
+      const state = ruleset.initialize(players, { gameId: 'g1', startingCash: 1500 }, 7);
+      const invalidNewTrade = ruleset.processAction(state, {
+        type: 'INITIATE_TRADE',
+        playerId: 'p1',
+        payload: {
+          targetPlayerId: 'p2',
+          offer: { cash: -200, properties: [] },
+          request: { cash: 0, properties: [] }
+        },
+        timestamp: Date.now()
+      });
+      expect(invalidNewTrade.isValid).toBe(false);
+
+      const validNewTrade = ruleset.processAction(state, {
+        type: 'INITIATE_TRADE',
+        playerId: 'p1',
+        payload: {
+          targetPlayerId: 'p2',
+          offer: { cash: 100, properties: [] },
+          request: { cash: 0, properties: [] }
+        },
+        timestamp: Date.now()
+      });
+      expect(validNewTrade.isValid).toBe(true);
+
+      const invalidCounter = ruleset.processAction(validNewTrade.newState!, {
+        type: 'COUNTER_TRADE',
+        playerId: 'p2',
+        payload: {
+          offer: { cash: 0, properties: [] },
+          request: { cash: Number.POSITIVE_INFINITY, properties: [] }
+        },
+        timestamp: Date.now()
+      });
+      expect(invalidCounter.isValid).toBe(false);
+    });
+
     it('allows the recipient to decline a trade (REJECT_TRADE)', () => {
       const ruleset = new MonopolyRuleset();
       const state = ruleset.initialize(players, { gameId: 'g1', startingCash: 1500 }, 7);

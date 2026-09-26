@@ -42,8 +42,7 @@ export const TermsPage: React.FC = () => {
         >
           <ShieldCheck size={24} style={{ color: 'var(--violet, #52b5a2)', flexShrink: 0, marginTop: '2px' }} />
           <div style={{ fontSize: '14.5px', lineHeight: 1.6 }}>
-            <strong>Welcome to turnUp.io!</strong> Our mission is simple: turn any group chat into game night in under sixty seconds.
-            By playing in a room, hosting a lobby, or creating an account, you agree to these Terms of Service. Please read them with the same care you would bring to any friendly board game match.
+            <strong>Draft for review.</strong> This terms page has not been approved by the service operator or reviewed by counsel. It should not be treated as an agreement until the operator confirms the terms, governing law, eligibility rules, and contact details.
           </div>
         </div>
 
@@ -51,11 +50,10 @@ export const TermsPage: React.FC = () => {
         <section id="acceptance" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">1. Acceptance &amp; Eligibility</h2>
           <p>
-            These Terms of Service (&ldquo;Terms&rdquo;) constitute a binding legal agreement between you (&ldquo;User,&rdquo; &ldquo;Player,&rdquo; or &ldquo;you&rdquo;) and turnUp.io (&ldquo;turnUp,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;).
-            By accessing our website, creating a game room, joining via code or direct link, or creating a registered user account, you confirm that you have read, understood, and agreed to be bound by these Terms.
+            The service operator must confirm the contracting entity and the process for presenting and accepting final terms before this draft is adopted.
           </p>
           <p>
-            You must be at least 13 years of age (or the minimum age of digital consent required in your jurisdiction) to use turnUp.io. If you are under the legal age of majority in your jurisdiction, you confirm that you have obtained verifiable parental or guardian consent to play.
+            Minimum age and guardian-consent requirements have not been confirmed for this draft and must be set by the service operator before launch.
           </p>
         </section>
 
@@ -206,7 +204,7 @@ export const TermsPage: React.FC = () => {
         <section id="disputes" style={{ marginBottom: '44px' }}>
           <h2 className="legal-heading">10. Governing Law &amp; Disputes</h2>
           <p>
-            These Terms shall be governed by and construed in accordance with the laws of Delaware, United States, without regard to its conflict of law principles. Any dispute arising out of these Terms shall first be attempted to be resolved via good-faith informal negotiation.
+            Governing law and dispute procedures have not been specified. The service operator must confirm them before adopting these terms.
           </p>
         </section>
 

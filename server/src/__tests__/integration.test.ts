@@ -29,6 +29,7 @@ describe('Full room -> game flow (socket.io integration)', () => {
   let hostClient: ClientSocket;
   let guestClient: ClientSocket;
   let spectatorClient: ClientSocket;
+  let fourthClient: ClientSocket;
 
   beforeAll((done) => {
     httpServer.listen(0, () => {
@@ -46,6 +47,7 @@ describe('Full room -> game flow (socket.io integration)', () => {
     hostClient?.disconnect();
     guestClient?.disconnect();
     spectatorClient?.disconnect();
+    fourthClient?.disconnect();
   });
 
   it('creates a room, joins, readies up, starts the game, and processes a valid move', async () => {
@@ -344,4 +346,53 @@ describe('Full room -> game flow (socket.io integration)', () => {
     });
     expect(otherUser.status).toBe(403);
   });
+
+  it('does not let spectators initiate or cast vote kicks', async () => {
+    const tokens = [
+      generateToken({ id: 'kick-host', username: 'KickHost', role: 'USER' }),
+      generateToken({ id: 'kick-guest', username: 'KickGuest', role: 'USER' }),
+      generateToken({ id: 'kick-third', username: 'KickThird', role: 'USER' }),
+      generateToken({ id: 'kick-spectator', username: 'KickSpectator', role: 'USER' })
+    ];
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    spectatorClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    fourthClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([
+      waitForEvent(hostClient, 'connect'),
+      waitForEvent(guestClient, 'connect'),
+      waitForEvent(spectatorClient, 'connect'),
+      waitForEvent(fourthClient, 'connect')
+    ]);
+
+    const created: any = await emitWithAck(hostClient, 'create_room', {
+      name: 'Vote Kick Membership', token: tokens[0], gameType: 'LUDO'
+    });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: tokens[1] });
+    await emitWithAck(spectatorClient, 'join_room', { roomId: created.roomId, token: tokens[2] });
+    await emitWithAck(guestClient, 'toggle_ready');
+    await emitWithAck(spectatorClient, 'toggle_ready');
+    const hostStarted = waitForEvent(hostClient, 'game_started');
+    const startResult: any = await emitWithAck(hostClient, 'start_game', {});
+    expect(startResult.success).toBe(true);
+    await hostStarted;
+
+    const spectatorJoin: any = await emitWithAck(fourthClient, 'join_room', {
+      roomId: created.roomId, token: tokens[3]
+    });
+    expect(spectatorJoin.success).toBe(true);
+    expect(spectatorJoin.isSpectator).toBe(true);
+
+    const initiateRejected = waitForEvent<any>(fourthClient, 'action_rejected');
+    fourthClient.emit('initiate_vote_kick', { targetPlayerId: 'kick-guest' });
+    expect((await initiateRejected).error).toMatch(/Only players/);
+
+    const voteStarted = waitForEvent<any>(fourthClient, 'vote_kick_started');
+    hostClient.emit('initiate_vote_kick', { targetPlayerId: 'kick-guest' });
+    expect((await voteStarted).initiatorId).toBe('kick-host');
+
+    const voteRejected = waitForEvent<any>(fourthClient, 'action_rejected');
+    fourthClient.emit('cast_kick_vote', { vote: true });
+    expect((await voteRejected).error).toMatch(/Only players/);
+  }, 15000);
 });

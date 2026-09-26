@@ -1199,7 +1199,12 @@ io.on('connection', (socket: Socket) => {
     const room = rooms[roomId];
     if (!room) return;
 
-    const targetPlayerId = payload.targetPlayerId;
+    if (!room.players.some(player => player.id === playerId)) {
+      socket.emit('action_rejected', { error: 'Only players in this room can initiate a vote kick.' });
+      return;
+    }
+
+    const targetPlayerId = payload?.targetPlayerId;
     const targetPlayer = room.players.find(p => p.id === targetPlayerId);
 
     if (!targetPlayer) {
@@ -1263,13 +1268,17 @@ io.on('connection', (socket: Socket) => {
     if (!room || !room.voteKick) return;
 
     const voteKick = room.voteKick;
+    if (!room.players.some(player => player.id === playerId)) {
+      socket.emit('action_rejected', { error: 'Only players in this room can vote.' });
+      return;
+    }
     if (playerId === voteKick.targetId) {
       socket.emit('action_rejected', { error: 'You cannot vote in your own kick session.' });
       return;
     }
 
     // Record the vote
-    voteKick.votes[playerId] = !!payload.vote;
+    voteKick.votes[playerId] = !!payload?.vote;
 
     const totalPlayersCount = room.players.length;
     const totalEligibleVoters = Math.max(0, totalPlayersCount - 1);
