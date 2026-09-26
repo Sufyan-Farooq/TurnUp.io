@@ -38,6 +38,13 @@ lerna-debug.log*
 *.sln
 *.sw?
 
+# Local agent and design tooling
+.agents/skills/
+.claude/
+.codex/
+.impeccable/
+skills-lock.json
+
 # OS files
 .DS_Store
 Thumbs.db
