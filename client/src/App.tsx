@@ -133,9 +133,11 @@ export default function App() {
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [showGameTypeModal, setShowGameTypeModal] = useState(false);
   const [selectedLobbyColor, setSelectedLobbyColor] = useState('');
+  const [isAppearancePickerOpenManual, setIsAppearancePickerOpenManual] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pendingWildCardIndices, setPendingWildCardIndices] = useState<number[] | null>(null);
   const [tradeModalTargetId, setTradeModalTargetId] = useState<string | null>(null);
+  const [tradeModalInitialRequestProp, setTradeModalInitialRequestProp] = useState<number | null>(null);
   const [voteKickCountdown, setVoteKickCountdown] = useState(60);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -426,9 +428,21 @@ export default function App() {
     []
   );
 
-  // ── Vote-kick countdown (server sends timeoutSeconds, default 60) ─────────
+  // ── Vote-kick countdown & modal state ─────────────────────────────────────
   const voteKickState = roomApi.voteKickState;
   const voteKickKey = voteKickState ? `${voteKickState.targetPlayerId}:${voteKickState.initiatorId}` : null;
+  const [isVoteKickModalOpen, setIsVoteKickModalOpen] = useState(false);
+  const prevVoteKickKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (voteKickKey && voteKickKey !== prevVoteKickKeyRef.current) {
+      setIsVoteKickModalOpen(true);
+    } else if (!voteKickKey) {
+      setIsVoteKickModalOpen(false);
+    }
+    prevVoteKickKeyRef.current = voteKickKey;
+  }, [voteKickKey]);
+
   useEffect(() => {
     setVoteKickCountdown(voteKickState?.timeoutSeconds ?? 60);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -572,6 +586,7 @@ export default function App() {
     setChatInput('');
     setHeldState(null);
     setTradeModalTargetId(null);
+    setTradeModalInitialRequestProp(null);
     setShowColorPicker(false);
     setPendingWildCardIndices(null);
     navigate('/');
@@ -718,6 +733,9 @@ export default function App() {
               onChallengeUno={targetPlayerId => game.sendGameAction('CHALLENGE_UNO', { targetPlayerId })}
               recentLogs={gameLog}
               isPreview={!displayGameState}
+              voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
+              voteKickCountdown={voteKickCountdown}
+              onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
             >
               <UnoHand
                 gameState={gameStateForBoard as unknown as UnoGameStateLike}
@@ -725,6 +743,7 @@ export default function App() {
                 isPreview={!displayGameState}
                 onPlayCard={cardIndex => handlePlayCards([cardIndex])}
                 onPlayDoubles={indices => handlePlayCards(indices)}
+                onDeclareUno={() => game.sendGameAction('DECLARE_UNO')}
                 onError={message => showToast(message, 'warning')}
               />
             </UnoBoard>
@@ -749,6 +768,10 @@ export default function App() {
               onDeclareBankruptcy={() => game.sendGameAction('DECLARE_BANKRUPTCY')}
               onBid={amount => game.sendGameAction('BID', { amount })}
               onFold={() => game.sendGameAction('FOLD')}
+              onOpenTradeWith={(targetId, propIdx) => {
+                setTradeModalTargetId(targetId);
+                setTradeModalInitialRequestProp(propIdx ?? null);
+              }}
               recentLogs={gameLog}
             />
           </BoardWrapper>
@@ -827,7 +850,7 @@ export default function App() {
     }
 
     const isMonopoly = room.gameType === 'MONOPOLY';
-    const showAppearancePicker = inLobby && !roomApi.hasJoinedLobby;
+    const showAppearancePicker = (inLobby && !roomApi.hasJoinedLobby) || isAppearancePickerOpenManual;
 
     return (
       <div className="game-shell" data-game={room.gameType}>
@@ -932,7 +955,11 @@ export default function App() {
                   availableColors={availableColors}
                   selectedColor={selectedLobbyColor}
                   onSelectColor={setSelectedLobbyColor}
-                  onConfirm={() => void roomApi.selectAppearance(selectedLobbyColor)}
+                  onConfirm={async () => {
+                    await roomApi.selectAppearance(selectedLobbyColor);
+                    setIsAppearancePickerOpenManual(false);
+                  }}
+                  onClose={roomApi.hasJoinedLobby ? () => setIsAppearancePickerOpenManual(false) : undefined}
                 />
               </div>
             )}
@@ -979,7 +1006,12 @@ export default function App() {
               onUpdateSettings={roomApi.updateLobbySettings}
               onKickPlayer={roomApi.initiateVoteKick}
               onStartGame={handleStartGame}
+              onOpenAppearancePicker={() => setIsAppearancePickerOpenManual(true)}
               onClose={isRightSidebarOpen ? () => closeRightSidebar() : undefined}
+              voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
+              voteKickCountdown={voteKickCountdown}
+              onCastVote={roomApi.castVote}
+              onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
             />
           ) : isMonopoly ? (
             <MonopolySidebar
@@ -990,7 +1022,13 @@ export default function App() {
               onUnmortgage={i => game.sendGameAction('UNMORTGAGE', { spaceIndex: i, tileIndex: i })}
               onBuildHouse={i => game.sendGameAction('BUILD_HOUSE', { spaceIndex: i, tileIndex: i })}
               onSellHouse={i => game.sendGameAction('SELL_HOUSE', { spaceIndex: i, tileIndex: i })}
-              onOpenTradeWith={setTradeModalTargetId}
+              onOpenTradeWith={targetId => {
+                setTradeModalTargetId(targetId);
+                setTradeModalInitialRequestProp(null);
+              }}
+              voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
+              voteKickCountdown={voteKickCountdown}
+              onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
             />
           ) : (
             <ActivePlayersPanel
@@ -1001,6 +1039,10 @@ export default function App() {
               hands={gameStateForBoard.gameSpecificState?.hands}
               activePlayerId={gameStateForBoard.activePlayerId}
               onKickPlayer={roomApi.initiateVoteKick}
+              voteKickState={voteKickState ? ({ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState) : null}
+              voteKickCountdown={voteKickCountdown}
+              onCastVote={roomApi.castVote}
+              onOpenVoteKickPanel={() => setIsVoteKickModalOpen(true)}
             />
           )}</div>
 
@@ -1062,23 +1104,32 @@ export default function App() {
             room={room as unknown as MonopolyRoom}
             currentUserId={playerId}
             targetPlayerId={tradeModalTargetId}
-            onCloseConstructor={() => setTradeModalTargetId(null)}
+            initialRequestedProp={tradeModalInitialRequestProp}
+            onCloseConstructor={() => {
+              setTradeModalTargetId(null);
+              setTradeModalInitialRequestProp(null);
+            }}
             onInitiateTrade={(targetPlayerId: string, offer: TradeSide, request: TradeSide) => {
               game.sendGameAction('INITIATE_TRADE', { targetPlayerId, offer, request });
               setTradeModalTargetId(null);
+              setTradeModalInitialRequestProp(null);
+            }}
+            onCounterTrade={(offer: TradeSide, request: TradeSide) => {
+              game.sendGameAction('COUNTER_TRADE', { offer, request });
             }}
             onAcceptTrade={() => game.sendGameAction('ACCEPT_TRADE')}
             onRejectTrade={() => game.sendGameAction('REJECT_TRADE')}
           />
         )}
 
-        {voteKickState && (
+        {voteKickState && isVoteKickModalOpen && (
           <VoteKickPanel
             voteKickState={{ votes: {}, requiredVotes: 0, ...voteKickState } as PanelVoteKickState}
             room={room}
             currentPlayerId={playerId}
             countdown={voteKickCountdown}
             onCastVote={roomApi.castVote}
+            onClose={() => setIsVoteKickModalOpen(false)}
           />
         )}
 

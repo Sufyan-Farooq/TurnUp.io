@@ -126,6 +126,98 @@ export interface TradeOffer {
   };
 }
 
+export function validateTradeConditions(state: MonopolyState, trade: TradeOffer): { canExecute: boolean; reason?: string } {
+  const { proposerId, receiverId, offer, request } = trade;
+  const gss = state.gameSpecificState;
+  if (!gss) return { canExecute: false, reason: 'Invalid game state.' };
+
+  const cash = gss.cash || {};
+  const bankrupt = gss.bankrupt || {};
+  const properties = gss.properties || {};
+
+  if (!proposerId || !receiverId) {
+    return { canExecute: false, reason: 'Invalid trade participants.' };
+  }
+
+  if (bankrupt[proposerId]) {
+    return { canExecute: false, reason: 'Proposer has gone bankrupt.' };
+  }
+  if (bankrupt[receiverId]) {
+    return { canExecute: false, reason: 'Target player has gone bankrupt.' };
+  }
+
+  const proposerCash = cash[proposerId] ?? 0;
+  const receiverCash = cash[receiverId] ?? 0;
+
+  if (proposerCash < 0 || (state.subState === 'DEBT_OR_BANKRUPT' && state.activePlayerId === proposerId)) {
+    return { canExecute: false, reason: 'Proposer is currently resolving debt.' };
+  }
+  if (receiverCash < 0 || (state.subState === 'DEBT_OR_BANKRUPT' && state.activePlayerId === receiverId)) {
+    return { canExecute: false, reason: 'Target player is currently resolving debt.' };
+  }
+
+  if (offer.cash > 0 && proposerCash < offer.cash) {
+    return { canExecute: false, reason: `Proposer does not have enough cash (has $${proposerCash}, needs $${offer.cash}).` };
+  }
+  if (request.cash > 0 && receiverCash < request.cash) {
+    return { canExecute: false, reason: `Target player does not have enough cash (has $${receiverCash}, needs $${request.cash}).` };
+  }
+
+  // Validate proposer offered properties
+  for (const spaceIndex of (offer.properties || [])) {
+    const prop = properties[spaceIndex];
+    const space = MONOPOLY_BOARD[spaceIndex];
+    const name = space?.name || `Property #${spaceIndex}`;
+
+    if (!prop || prop.ownerId !== proposerId) {
+      return { canExecute: false, reason: `Proposer does not own ${name}.` };
+    }
+    if (prop.houses > 0) {
+      return { canExecute: false, reason: `Cannot trade ${name} because it has houses built on it.` };
+    }
+    if (prop.mortgaged) {
+      return { canExecute: false, reason: `Cannot trade ${name} because it is currently mortgaged.` };
+    }
+    if (space?.group) {
+      const groupHasHouses = Object.entries(properties).some(([idx, p]) => {
+        const s = MONOPOLY_BOARD[parseInt(idx, 10)];
+        return s.group === space.group && p.houses > 0;
+      });
+      if (groupHasHouses) {
+        return { canExecute: false, reason: `Cannot trade ${name} while houses are built on its color group.` };
+      }
+    }
+  }
+
+  // Validate receiver requested properties
+  for (const spaceIndex of (request.properties || [])) {
+    const prop = properties[spaceIndex];
+    const space = MONOPOLY_BOARD[spaceIndex];
+    const name = space?.name || `Property #${spaceIndex}`;
+
+    if (!prop || prop.ownerId !== receiverId) {
+      return { canExecute: false, reason: `Target player does not own ${name}.` };
+    }
+    if (prop.houses > 0) {
+      return { canExecute: false, reason: `Cannot trade ${name} because it has houses built on it.` };
+    }
+    if (prop.mortgaged) {
+      return { canExecute: false, reason: `Cannot trade ${name} because it is currently mortgaged.` };
+    }
+    if (space?.group) {
+      const groupHasHouses = Object.entries(properties).some(([idx, p]) => {
+        const s = MONOPOLY_BOARD[parseInt(idx, 10)];
+        return s.group === space.group && p.houses > 0;
+      });
+      if (groupHasHouses) {
+        return { canExecute: false, reason: `Cannot trade ${name} while houses are built on its color group.` };
+      }
+    }
+  }
+
+  return { canExecute: true };
+}
+
 export interface MonopolyState extends GameState {
   gameSpecificState: {
     positions: Record<string, number>; // playerId -> 0-47
@@ -242,7 +334,7 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
 
     const isOutOfTurnAction = 
       (currentState.subState === 'AUCTION' && (type === 'BID' || type === 'FOLD')) ||
-      (type === 'INITIATE_TRADE' || type === 'ACCEPT_TRADE' || type === 'REJECT_TRADE');
+      (type === 'INITIATE_TRADE' || type === 'COUNTER_TRADE' || type === 'ACCEPT_TRADE' || type === 'REJECT_TRADE');
     if (!isOutOfTurnAction && playerId !== currentState.activePlayerId) {
       return { isValid: false, error: 'Not your turn.', events: [] };
     }
@@ -271,100 +363,90 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
       if (currentState.gameSpecificState.activeTrade) {
         return { isValid: false, error: 'A trade is already in progress. Please wait for it to resolve.', events: [] };
       }
-      if (currentState.gameSpecificState.bankrupt[targetPlayerId]) {
-        return { isValid: false, error: 'Cannot trade with a bankrupt player.', events: [] };
-      }
-      // W-4: Block proposer from trading while they are in debt resolution
-      if (currentState.subState === 'DEBT_OR_BANKRUPT') {
-        return { isValid: false, error: 'You must resolve your debt before initiating a trade.', events: [] };
-      }
-      const proposerCashW4 = currentState.gameSpecificState.cash[playerId] || 0;
-      if (proposerCashW4 < 0) {
-        return { isValid: false, error: 'You cannot initiate a trade while in debt.', events: [] };
-      }
 
-      // Check proposer cash can cover the offer
-      const proposerCash = currentState.gameSpecificState.cash[playerId] || 0;
-      if (offer.cash > 0 && proposerCash < offer.cash) {
-        return { isValid: false, error: 'You do not have enough cash for this offer.', events: [] };
-      }
-
-      // Check proposer properties
-      const properties = currentState.gameSpecificState.properties || {};
-      for (const spaceIndex of (offer.properties || [])) {
-        const prop = properties[spaceIndex];
-        if (!prop || prop.ownerId !== playerId) {
-          return { isValid: false, error: `You do not own property index ${spaceIndex}.`, events: [] };
-        }
-        if (prop.houses > 0) {
-          return { isValid: false, error: 'Cannot trade a property that has houses built on it.', events: [] };
-        }
-        // Check if any property in this group has houses
-        const space = MONOPOLY_BOARD[spaceIndex];
-        if (space.group) {
-          const hasHouses = Object.entries(properties).some(([idx, p]) => {
-            const s = MONOPOLY_BOARD[parseInt(idx, 10)];
-            return s.group === space.group && p.houses > 0;
-          });
-          if (hasHouses) {
-            return { isValid: false, error: 'Cannot trade property in group with built houses.', events: [] };
-          }
-        }
-      }
-
-      // Check receiver cash
-      const receiverCash = currentState.gameSpecificState.cash[targetPlayerId] || 0;
-      if (request.cash > 0 && receiverCash < request.cash) {
-        return { isValid: false, error: 'Target player does not have enough cash.', events: [] };
-      }
-
-      // Check receiver properties
-      for (const spaceIndex of (request.properties || [])) {
-        const prop = properties[spaceIndex];
-        if (!prop || prop.ownerId !== targetPlayerId) {
-          return { isValid: false, error: `Target player does not own property index ${spaceIndex}.`, events: [] };
-        }
-        if (prop.houses > 0) {
-          return { isValid: false, error: 'Cannot trade a property that has houses built on it.', events: [] };
-        }
-        const space = MONOPOLY_BOARD[spaceIndex];
-        if (space.group) {
-          const hasHouses = Object.entries(properties).some(([idx, p]) => {
-            const s = MONOPOLY_BOARD[parseInt(idx, 10)];
-            return s.group === space.group && p.houses > 0;
-          });
-          if (hasHouses) {
-            return { isValid: false, error: 'Cannot trade property in group with built houses.', events: [] };
-          }
-        }
-      }
-
-      // Safe to propose! Stash the active trade in state
-      const newTrade = {
+      const candidateTrade: TradeOffer = {
         proposerId: playerId,
         receiverId: targetPlayerId,
         offer: {
-          cash: offer.cash || 0,
-          properties: offer.properties || []
+          cash: Number(offer.cash) || 0,
+          properties: Array.isArray(offer.properties) ? offer.properties : []
         },
         request: {
-          cash: request.cash || 0,
-          properties: request.properties || []
+          cash: Number(request.cash) || 0,
+          properties: Array.isArray(request.properties) ? request.properties : []
         }
       };
+
+      const conditionCheck = validateTradeConditions(currentState, candidateTrade);
+      if (!conditionCheck.canExecute) {
+        return { isValid: false, error: conditionCheck.reason || 'Invalid trade offer.', events: [] };
+      }
 
       const nextState: MonopolyState = {
         ...currentState,
         gameSpecificState: {
           ...currentState.gameSpecificState,
-          activeTrade: newTrade
+          activeTrade: candidateTrade
         }
       };
 
       events.push({
         type: 'TRADE_INITIATED',
         playerId,
-        payload: { targetPlayerId, offer, request }
+        payload: { targetPlayerId, offer: candidateTrade.offer, request: candidateTrade.request }
+      });
+
+      return { isValid: true, newState: nextState, events };
+    }
+
+    if (type === 'COUNTER_TRADE') {
+      const activeTrade = currentState.gameSpecificState.activeTrade;
+      if (!activeTrade) {
+        return { isValid: false, error: 'No active trade proposal exists to negotiate.', events: [] };
+      }
+      if (playerId !== activeTrade.receiverId) {
+        return { isValid: false, error: 'Only the recipient of the offer can negotiate a counter-offer.', events: [] };
+      }
+
+      const counterOffer = payload.offer || { cash: 0, properties: [] };
+      const counterRequest = payload.request || { cash: 0, properties: [] };
+      const targetPlayerId = activeTrade.proposerId;
+
+      const candidateTrade: TradeOffer = {
+        proposerId: playerId,
+        receiverId: targetPlayerId,
+        offer: {
+          cash: Number(counterOffer.cash) || 0,
+          properties: Array.isArray(counterOffer.properties) ? counterOffer.properties : []
+        },
+        request: {
+          cash: Number(counterRequest.cash) || 0,
+          properties: Array.isArray(counterRequest.properties) ? counterRequest.properties : []
+        }
+      };
+
+      const conditionCheck = validateTradeConditions(currentState, candidateTrade);
+      if (!conditionCheck.canExecute) {
+        return { isValid: false, error: conditionCheck.reason || 'Invalid counter-offer.', events: [] };
+      }
+
+      const nextState: MonopolyState = {
+        ...currentState,
+        gameSpecificState: {
+          ...currentState.gameSpecificState,
+          activeTrade: candidateTrade
+        }
+      };
+
+      events.push({
+        type: 'TRADE_COUNTERED',
+        playerId,
+        payload: {
+          proposerId: playerId,
+          receiverId: targetPlayerId,
+          offer: candidateTrade.offer,
+          request: candidateTrade.request
+        }
       });
 
       return { isValid: true, newState: nextState, events };
@@ -405,42 +487,18 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
         return { isValid: false, error: 'Only the receiver can accept the trade offer.', events: [] };
       }
 
-      const { proposerId, receiverId, offer, request } = activeTrade;
+      // Re-validate that all conditions still hold (cash, ownership, houses, mortgages, debt, bankruptcy)
+      const conditionCheck = validateTradeConditions(currentState, activeTrade);
+      if (!conditionCheck.canExecute) {
+        return { isValid: false, error: `Trade cannot be completed: ${conditionCheck.reason}`, events: [] };
+      }
 
-      // Re-validate proposers and receivers cash & properties
+      const { proposerId, receiverId, offer, request } = activeTrade;
       const properties = currentState.gameSpecificState.properties || {};
       const updatedProperties = { ...properties };
       const updatedCash = { ...currentState.gameSpecificState.cash };
 
-      // 1. Proposer validation
-      if (updatedCash[proposerId] < offer.cash) {
-        return { isValid: false, error: 'Proposer no longer has enough cash to complete trade.', events: [] };
-      }
-      for (const spaceIndex of offer.properties) {
-        const prop = properties[spaceIndex];
-        if (!prop || prop.ownerId !== proposerId) {
-          return { isValid: false, error: 'Proposer no longer owns one of the offered properties.', events: [] };
-        }
-        if (prop.houses > 0) {
-          return { isValid: false, error: 'One of the offered properties now has houses.', events: [] };
-        }
-      }
-
-      // 2. Receiver validation
-      if (updatedCash[receiverId] < request.cash) {
-        return { isValid: false, error: 'You no longer have enough cash to complete trade.', events: [] };
-      }
-      for (const spaceIndex of request.properties) {
-        const prop = properties[spaceIndex];
-        if (!prop || prop.ownerId !== receiverId) {
-          return { isValid: false, error: 'You no longer own one of the requested properties.', events: [] };
-        }
-        if (prop.houses > 0) {
-          return { isValid: false, error: 'One of the requested properties now has houses.', events: [] };
-        }
-      }
-
-      // 3. Execute exchanges!
+      // Execute exchanges!
       updatedCash[proposerId] -= offer.cash;
       updatedCash[receiverId] += offer.cash;
 
@@ -1082,6 +1140,19 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
         updatedCash[playerId] = 0;
       }
 
+      // Clear active trade if the bankrupt player was involved
+      const activeTrade = currentState.gameSpecificState.activeTrade;
+      const shouldClearActiveTrade = !!(activeTrade && (activeTrade.proposerId === playerId || activeTrade.receiverId === playerId));
+      const remainingActiveTrade = shouldClearActiveTrade ? undefined : activeTrade;
+
+      if (shouldClearActiveTrade) {
+        events.push({
+          type: 'TRADE_REJECTED',
+          playerId,
+          payload: { proposerId: activeTrade.proposerId, receiverId: activeTrade.receiverId, reason: 'Bankruptcy' }
+        });
+      }
+
       // Check if only 1 active player remains
       const activePlayers = currentState.turnOrder.filter(pid => !updatedBankrupt[pid]);
 
@@ -1097,7 +1168,8 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
             cash: updatedCash,
             bankrupt: updatedBankrupt,
             debtOwedTo: null,
-            debtAmount: 0
+            debtAmount: 0,
+            activeTrade: remainingActiveTrade
           }
         };
         return { isValid: true, newState: nextState, events };
@@ -1124,7 +1196,8 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
           bankrupt: updatedBankrupt,
           doubleRollCount: 0,
           debtOwedTo: null,
-          debtAmount: 0
+          debtAmount: 0,
+          activeTrade: remainingActiveTrade
         }
       };
 

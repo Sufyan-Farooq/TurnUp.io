@@ -119,6 +119,7 @@ export interface MonopolyActionHandlers {
   onSellHouse: (spaceIndex: number) => void;
   onDeclareBankruptcy: () => void;
   onInitiateTrade: (targetPlayerId: string, offer: TradeSide, request: TradeSide) => void;
+  onCounterTrade?: (offer: TradeSide, request: TradeSide) => void;
   onAcceptTrade: () => void;
   onRejectTrade: () => void;
   onBid: (amount: number) => void;

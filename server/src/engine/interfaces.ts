@@ -148,7 +148,7 @@ export class GameEngineManager {
 
   private isOutofTurnActionAllowed(action: GameAction): boolean {
     // Certain actions like Monopoly trades, auctions, or Uno "Draw Penalty" / "Saying Uno" can occur out of turn.
-    const outOfTurnActions = ['INITIATE_TRADE', 'ACCEPT_TRADE', 'REJECT_TRADE', 'BID', 'FOLD', 'DECLARE_UNO', 'CHALLENGE_UNO'];
+    const outOfTurnActions = ['INITIATE_TRADE', 'COUNTER_TRADE', 'ACCEPT_TRADE', 'REJECT_TRADE', 'BID', 'FOLD', 'DECLARE_UNO', 'CHALLENGE_UNO'];
     return outOfTurnActions.includes(action.type);
   }
 

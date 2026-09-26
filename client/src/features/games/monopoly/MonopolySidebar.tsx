@@ -1,7 +1,8 @@
 import React from 'react';
-import { Crown, Lock, Skull, Handshake } from 'lucide-react';
+import { Crown, Lock, Skull, Handshake, Ban } from 'lucide-react';
 import { MONOPOLY_BOARD, colorGroupMap, AVATAR_COLORS } from './boardData';
 import type { MonopolyGameState, MonopolyRoom } from './types';
+import type { VoteKickState } from '../../room/types';
 import './monopoly.css';
 
 export interface MonopolySidebarProps {
@@ -14,11 +15,14 @@ export interface MonopolySidebarProps {
   onSellHouse: (spaceIndex: number) => void;
   onOpenTradeWith?: (targetPlayerId: string) => void;
   onHoverPlayer?: (playerId: string | null) => void;
+  voteKickState?: VoteKickState | null;
+  voteKickCountdown?: number;
+  onOpenVoteKickPanel?: () => void;
 }
 
 export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
   gameState, room, currentUserId, onMortgage, onUnmortgage, onBuildHouse,
-  onSellHouse, onOpenTradeWith, onHoverPlayer
+  onSellHouse, onOpenTradeWith, onHoverPlayer, voteKickState, voteKickCountdown, onOpenVoteKickPanel
 }) => {
   const cash = gameState.gameSpecificState.cash || {};
   const properties = gameState.gameSpecificState.properties || {};
@@ -53,6 +57,17 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
                     {player.name}{player.id === currentUserId ? ' · You' : ''}
                   </span>
                   <div className="monopoly-player-badges">
+                    {voteKickState?.targetPlayerId === player.id && (
+                      <button
+                        type="button"
+                        className="monopoly-player-badge is-alert"
+                        onClick={onOpenVoteKickPanel}
+                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                        title="Vote kick in progress. Click to view details"
+                      >
+                        <Ban size={9} /> Kick: {Object.values(voteKickState.votes || {}).filter(v => v === true).length}/{voteKickState.requiredVotes} ({voteKickCountdown}s)
+                      </button>
+                    )}
                     {isActive && <span className="monopoly-player-badge">Playing now</span>}
                     {player.id === room?.hostId && <span className="monopoly-player-badge"><Crown size={9} /> Host</span>}
                     {playerInJail && <span className="monopoly-player-badge"><Lock size={9} /> In jail</span>}
@@ -82,7 +97,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
         ) : myOwnedProperties.map(({ index, prop }) => {
           const space = MONOPOLY_BOARD[index];
           const isStreet = space.type === 'property';
-          const colorCode = colorGroupMap[space.group || ''] || 'var(--accent-purple)';
+          const colorCode = colorGroupMap[space.group || ''] || 'var(--gold)';
           const mortgageValue = Math.round(space.mortgageValue ?? (space.price || 0) * 0.5);
           const unmortgageValue = Math.round(mortgageValue * 1.1);
           return (

@@ -1,8 +1,10 @@
 import React from 'react';
-import { Activity, ArrowRightCircle, Ban, Layers, Palette, RotateCcw, RotateCw, ShieldAlert } from 'lucide-react';
+import { Activity, ArrowRightCircle, Ban, Palette, RotateCcw, RotateCw, ShieldAlert } from 'lucide-react';
 import type { UnoCard, UnoGameStateLike, UnoRoomLike } from './uno.types';
 import { getHandCount } from './uno.types';
 import './uno.css';
+
+import type { VoteKickState } from '../../room/types';
 
 export interface UnoBoardProps {
   gameState: UnoGameStateLike;
@@ -13,7 +15,21 @@ export interface UnoBoardProps {
   recentLogs?: string[];
   isPreview?: boolean;
   children?: React.ReactNode;
+  voteKickState?: VoteKickState | null;
+  voteKickCountdown?: number;
+  onOpenVoteKickPanel?: () => void;
 }
+
+const getUnoCardCornerText = (value: string): string => {
+  switch (value) {
+    case 'wildDraw4': return '+4';
+    case 'draw2': return '+2';
+    case 'skip': return '⊘';
+    case 'reverse': return '⇄';
+    case 'wild': return '★';
+    default: return value.toUpperCase();
+  }
+};
 
 const getUnoCardSymbol = (value: string): React.ReactNode => {
   switch (value) {
@@ -52,11 +68,26 @@ const CardBackFan: React.FC<{ count: number }> = ({ count }) => {
   );
 };
 
-export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUserId, onDrawCard, onChallengeUno, recentLogs = [], isPreview = false, children }) => {
+export const UnoBoard: React.FC<UnoBoardProps> = ({
+  gameState,
+  room,
+  currentUserId,
+  onDrawCard,
+  onChallengeUno,
+  recentLogs = [],
+  isPreview = false,
+  children,
+  voteKickState,
+  voteKickCountdown,
+  onOpenVoteKickPanel,
+}) => {
   const hands = gameState.gameSpecificState.hands || {};
   const otherPlayers = room.players?.filter(player => player.id !== currentUserId) || [];
   const activePlayer = room.players?.find(player => player.id === gameState.activePlayerId);
   const isMyTurn = gameState.activePlayerId === currentUserId;
+  const targetPlayerId = voteKickState?.targetPlayerId;
+  const yesCount = voteKickState ? Object.values(voteKickState.votes || {}).filter(v => v === true).length : 0;
+  const requiredVotes = voteKickState?.requiredVotes ?? 0;
   const currentCard = gameState.gameSpecificState.currentCard;
   const currentColor = gameState.gameSpecificState.currentColor;
   const pendingDraw = gameState.gameSpecificState.pendingDrawCount || 0;
@@ -74,8 +105,8 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
       <header className="uno-table-status" id="uno-turn-status" aria-live="polite">
         <span className={`uno-status-light ${isMyTurn ? 'is-active' : ''}`} aria-hidden="true" />
         <div>
-          <strong>{isPreview ? 'Waiting for the match' : isMyTurn ? 'Your turn' : `${activePlayer?.name || 'Opponent'} is playing`}</strong>
-          <span>{isPreview ? 'The deck and first card appear when the host starts' : pendingDraw > 0 ? `Draw penalty: ${pendingDraw} cards` : isMyTurn ? 'Match a color, number, or action' : 'Watch the discard pile'}</span>
+          <strong>{isPreview ? 'Waiting for the match' : isMyTurn ? (pendingDraw > 0 ? `You face a +${pendingDraw} draw penalty!` : 'Your turn') : (pendingDraw > 0 ? `${activePlayer?.name || 'Opponent'} faces +${pendingDraw} penalty` : `${activePlayer?.name || 'Opponent'} is playing`)}</strong>
+          <span>{isPreview ? 'The deck and first card appear when the host starts' : pendingDraw > 0 ? (isMyTurn ? (canStack ? 'Stack a compatible draw card or draw the penalty' : `Draw ${pendingDraw} penalty cards`) : `${activePlayer?.name || 'Opponent'} must stack or draw ${pendingDraw} cards`) : isMyTurn ? 'Match a color, number, or action' : 'Watch the discard pile'}</span>
         </div>
         {isPreview ? <span className="uno-direction">Lobby preview</span> : (
           <span className="uno-direction" title={isClockwise ? 'Clockwise play' : 'Counter-clockwise play'}>
@@ -84,30 +115,47 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
         )}
       </header>
 
-      {pendingDraw > 0 && (
-        <div className="uno-penalty-banner" role="status">
-          <span>+</span>{pendingDraw}
-          <small>{isMyTurn ? (canStack ? 'Stack a draw card or take the penalty' : 'Take the penalty cards') : 'Penalty is building'}</small>
-        </div>
-      )}
-
       <div className="uno-opponents" aria-label="Opponents">
         {otherPlayers.map((player, index) => {
           const cardCount = getHandCount(hands[player.id]);
           const declaredUno = !!gameState.gameSpecificState.unoDeclared?.[player.id];
           const isVulnerable = cardCount === 1 && !declaredUno;
           const isActive = player.id === gameState.activePlayerId;
+          const hasPenalty = isActive && pendingDraw > 0;
+
+          const isVoteKickTarget = targetPlayerId === player.id;
 
           return (
             <article
               key={player.id}
-              className={`uno-opponent-seat ${opponentPosition(index, otherPlayers.length)} ${isActive ? 'is-active' : ''} ${isVulnerable && !isPreview ? 'is-vulnerable' : ''}`}
-              aria-label={isPreview ? `${player.name}, waiting to play` : `${player.name}, ${cardCount} cards${isActive ? ', current turn' : ''}`}
+              className={`uno-opponent-seat ${opponentPosition(index, otherPlayers.length)} ${isActive ? 'is-active' : ''} ${hasPenalty ? 'has-penalty' : ''} ${isVulnerable && !isPreview ? 'is-vulnerable' : ''} ${isVoteKickTarget ? 'is-votekick-target' : ''}`}
+              aria-label={isPreview ? `${player.name}, waiting to play` : `${player.name}, ${cardCount} cards${isActive ? ', current turn' : ''}${hasPenalty ? `, facing +${pendingDraw} draw penalty` : ''}`}
             >
+              {hasPenalty && !isPreview && (
+                <div className="uno-seat-penalty-tag" role="status" aria-label={`${player.name} faces +${pendingDraw} draw penalty`}>
+                  <span className="uno-seat-penalty-num">+{pendingDraw}</span>
+                  <span className="uno-seat-penalty-label">{canStack ? 'Stack or Take' : 'Penalty'}</span>
+                </div>
+              )}
               <div className="uno-opponent-seat-header">
                 <span className={`uno-presence-dot ${player.connected === false ? 'is-offline' : ''}`} aria-hidden="true" />
                 <strong className="uno-opponent-name">{player.name}</strong>
-                {isActive && <span className="uno-turn-badge">playing</span>}
+                {isVoteKickTarget ? (
+                  <button
+                    type="button"
+                    onClick={onOpenVoteKickPanel}
+                    className="uno-votekick-badge"
+                    title="Vote kick in progress. Click to view details"
+                  >
+                    <Ban size={10} />
+                    <span>Kick: {yesCount}/{requiredVotes}</span>
+                    {voteKickCountdown !== undefined && <span>({voteKickCountdown}s)</span>}
+                  </button>
+                ) : hasPenalty && !isPreview ? (
+                  <span className="uno-seat-penalty-badge">+{pendingDraw} PENALTY</span>
+                ) : isActive ? (
+                  <span className="uno-turn-badge">playing</span>
+                ) : null}
               </div>
               {!isPreview && <CardBackFan count={cardCount} />}
               <div className="uno-opponent-footer">
@@ -125,38 +173,44 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
       </div>
 
       <div className={`uno-table-center ${isClockwise ? '' : 'is-reversed'} ${isPreview ? 'is-preview' : ''}`}>
-        <svg className="uno-direction-ring" viewBox="0 0 240 240" aria-hidden="true">
-          <circle cx="120" cy="120" r="100" />
+        <svg className="uno-direction-ring" viewBox="0 0 400 400" aria-hidden="true">
+          <ellipse cx="200" cy="200" rx="168" ry="132" />
           <g className="uno-direction-art">
-            <path d="M41 47 A100 100 0 0 1 194 74" />
-            <path d="M177 62 L199 76 L176 87" className="uno-direction-arrow" />
-            <path d="M199 193 A100 100 0 0 1 46 166" />
-            <path d="M63 178 L41 164 L64 153" className="uno-direction-arrow" />
+            {/* Top arc & arrow: sweeps left to right */}
+            <path d="M 45 168 A 168 132 0 0 1 355 168" />
+            <polygon points="360,178 362,154 344,166" className="uno-direction-arrow" />
+            {/* Bottom arc & arrow: sweeps right to left */}
+            <path d="M 355 232 A 168 132 0 0 1 45 232" />
+            <polygon points="40,222 38,246 56,234" className="uno-direction-arrow" />
           </g>
         </svg>
-        {!isPreview && <span key={isClockwise ? 'clockwise' : 'counter-clockwise'} className="uno-direction-center-label" aria-live="polite">
-          {isClockwise ? <RotateCw aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
-          {isClockwise ? 'Clockwise' : 'Counter-clockwise'}
-        </span>}
 
         <div className="uno-piles">
           <button
             type="button"
-            className={`uno-card uno-draw-pile ${isMyTurn && !isPreview ? 'is-actionable' : ''}`}
+            className={`uno-card uno-draw-pile ${isMyTurn && !isPreview ? 'is-actionable' : ''} ${isPlayOrPass ? 'is-pass-action' : ''} ${isMyTurn && pendingDraw > 0 ? 'has-penalty-action' : ''}`}
             onClick={onDrawCard}
             disabled={isPreview || !isMyTurn}
             aria-label={isPreview ? 'Draw pile, available when the match starts' : isMyTurn ? (isPlayOrPass ? 'Pass your turn' : `${drawActionLabel}${deckCount === null ? ', deck count syncing' : `, ${deckCount} cards remain in deck`}`) : 'Draw pile, available on your turn'}
           >
-            <span className="uno-card-back-mark">{isPlayOrPass ? <ArrowRightCircle aria-hidden="true" /> : <Layers aria-hidden="true" />}</span>
-            <strong>{isPreview ? 'Deck' : drawActionLabel}</strong>
-            <small>{isPreview ? 'Not dealt' : isPlayOrPass ? 'end turn' : deckCount === null ? 'syncing count' : `${deckCount} left`}</small>
+            {isPlayOrPass ? (
+              <div className="uno-card-pass-symbol" aria-hidden="true">
+                <ArrowRightCircle size={28} />
+              </div>
+            ) : (
+              <div className="uno-card-back-badge" aria-hidden="true">
+                <span className="uno-card-back-text">UNO</span>
+              </div>
+            )}
+            <strong className="uno-draw-pile-action">{isPreview ? 'Deck' : drawActionLabel}</strong>
+            <small className="uno-draw-pile-count">{isPreview ? 'Not dealt' : isPlayOrPass ? 'End turn' : deckCount === null ? 'Syncing' : `${deckCount} left`}</small>
           </button>
 
           {currentCard ? (
             <div className={`uno-card uno-discard-card card-${currentCard.color}`} aria-label={`Current card: ${currentColor} ${currentCard.value}`}>
-              <span className="uno-card-corner">{currentCard.value.toUpperCase()}</span>
+              <span className="uno-card-corner">{getUnoCardCornerText(currentCard.value)}</span>
               <span className="uno-card-center-symbol">{getUnoCardSymbol(currentCard.value)}</span>
-              <span className="uno-card-corner uno-card-corner--bottom">{currentCard.value.toUpperCase()}</span>
+              <span className="uno-card-corner uno-card-corner--bottom">{getUnoCardCornerText(currentCard.value)}</span>
               <span className={`uno-current-color uno-current-color--${currentColor}`}>{currentColor}</span>
             </div>
           ) : (
@@ -185,6 +239,6 @@ export const UnoBoard: React.FC<UnoBoardProps> = ({ gameState, room, currentUser
   );
 };
 
-export { getUnoCardSymbol };
+export { getUnoCardSymbol, getUnoCardCornerText };
 export type { UnoCard };
 export default UnoBoard;

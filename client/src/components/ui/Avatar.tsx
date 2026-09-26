@@ -20,7 +20,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name, color, size = 'md', classN
   return (
     <div
       className={['lobby-avatar', className].filter(Boolean).join(' ')}
-      style={{ width: px, height: px, fontSize: px * 0.45, background: bg, color: '#1B1140', ...style }}
+      style={{ width: px, height: px, fontSize: px * 0.45, background: bg, color: '#0d1a24', ...style }}
       aria-label={name}
     >
       {initial}

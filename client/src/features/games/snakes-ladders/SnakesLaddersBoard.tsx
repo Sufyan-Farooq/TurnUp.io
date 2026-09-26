@@ -2,6 +2,7 @@ import React from 'react';
 import { BoardWrapper } from '../../../components/BoardWrapper';
 import type { GameRoom, BaseGameState } from '../types';
 import { getSerpentineCoordinates, getSnakesTokenSlot } from './boardGeometry';
+import { getSnakesStepPath } from './snakesPath';
 import './snakes-ladders.css';
 
 export interface SnakesLaddersGameSpecificState {
@@ -22,17 +23,137 @@ export interface SnakesLaddersBoardProps {
 }
 
 const TOKEN_COLORS = ['#ff5c66', '#4e8cff', '#3fbf7f', '#ffc247', '#a782ff', '#ff9b54', '#51c8d4', '#f777b5'];
+const EMPTY_POSITIONS: Record<string, number> = {};
+const EMPTY_SNAKES: Record<number, number> = {};
+const EMPTY_LADDERS: Record<number, number> = {};
 
 /**
  * Snakes & Ladders board: 10x10 serpentine grid with SVG routes, board
- * landmarks, and player tokens. Gameplay state remains entirely prop-driven.
+ * landmarks, and player tokens with natural step-by-step path movement.
  */
 export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameState, room }) => {
-  const positions = gameState.gameSpecificState.positions || {};
-  const snakes = gameState.gameSpecificState.snakes || {};
-  const ladders = gameState.gameSpecificState.ladders || {};
+  const positions = gameState.gameSpecificState.positions || EMPTY_POSITIONS;
+  const snakes = gameState.gameSpecificState.snakes || EMPTY_SNAKES;
+  const ladders = gameState.gameSpecificState.ladders || EMPTY_LADDERS;
+  const lastRoll = gameState.gameSpecificState.lastRoll || 0;
+
+  const [visualPositions, setVisualPositions] = React.useState<Record<string, number>>(positions);
+  const [motionStates, setMotionStates] = React.useState<Record<string, 'hopping' | 'sliding' | 'idle'>>({});
+  const prevPositionsRef = React.useRef<Record<string, number>>(positions);
+  const playerTimeoutsRef = React.useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
+  const visualPositionsRef = React.useRef<Record<string, number>>(positions);
+  visualPositionsRef.current = visualPositions;
+
+  const clearPlayerTimeouts = (pId: string) => {
+    const timeouts = playerTimeoutsRef.current.get(pId);
+    if (timeouts) {
+      timeouts.forEach(clearTimeout);
+      playerTimeoutsRef.current.delete(pId);
+    }
+  };
+
+  const clearAllTimeouts = () => {
+    playerTimeoutsRef.current.forEach(timeouts => timeouts.forEach(clearTimeout));
+    playerTimeoutsRef.current.clear();
+  };
+
+  React.useEffect(() => {
+    const prev = prevPositionsRef.current;
+    prevPositionsRef.current = positions;
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      clearAllTimeouts();
+      setVisualPositions(positions);
+      setMotionStates({});
+      return;
+    }
+
+    const animatingPlayers = new Set<string>();
+
+    for (const [pId, toPos] of Object.entries(positions)) {
+      const fromPos = prev[pId];
+      if (fromPos !== undefined && fromPos !== toPos) {
+        animatingPlayers.add(pId);
+        clearPlayerTimeouts(pId);
+
+        const currentVisual = visualPositionsRef.current[pId];
+        const effectiveFrom = (currentVisual !== undefined && currentVisual !== toPos)
+          ? currentVisual
+          : fromPos;
+
+        const result = getSnakesStepPath(effectiveFrom, toPos, lastRoll, snakes, ladders);
+        const stepInterval = 170;
+        const playerTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+        result.steps.forEach((step, idx) => {
+          const t = setTimeout(() => {
+            setVisualPositions(cur => ({ ...cur, [pId]: step }));
+            setMotionStates(cur => ({ ...cur, [pId]: 'hopping' }));
+          }, idx * stepInterval);
+          playerTimeouts.push(t);
+        });
+
+        const stepsEnd = result.steps.length * stepInterval;
+
+        if (result.isSnakeOrLadder) {
+          const pauseT = setTimeout(() => {
+            setMotionStates(cur => ({ ...cur, [pId]: 'idle' }));
+          }, stepsEnd + 40);
+          playerTimeouts.push(pauseT);
+
+          const slideT = setTimeout(() => {
+            setVisualPositions(cur => ({ ...cur, [pId]: result.finalSquare }));
+            setMotionStates(cur => ({ ...cur, [pId]: 'sliding' }));
+          }, stepsEnd + 280);
+          playerTimeouts.push(slideT);
+
+          const finishT = setTimeout(() => {
+            setVisualPositions(cur => ({ ...cur, [pId]: result.finalSquare }));
+            setMotionStates(cur => ({ ...cur, [pId]: 'idle' }));
+            playerTimeoutsRef.current.delete(pId);
+          }, stepsEnd + 280 + 650);
+          playerTimeouts.push(finishT);
+        } else {
+          const endT = setTimeout(() => {
+            setVisualPositions(cur => ({ ...cur, [pId]: result.finalSquare }));
+            setMotionStates(cur => ({ ...cur, [pId]: 'idle' }));
+            playerTimeoutsRef.current.delete(pId);
+          }, stepsEnd + 40);
+          playerTimeouts.push(endT);
+        }
+
+        playerTimeoutsRef.current.set(pId, playerTimeouts);
+      }
+    }
+
+    // Authoritative sync: Any player who is NOT actively animating and has no pending timeouts
+    // must match their authoritative server position. This prevents any pawn from ever being stranded.
+    setVisualPositions(cur => {
+      let changed = false;
+      const next = { ...cur };
+      for (const [pId, pos] of Object.entries(positions)) {
+        if (!animatingPlayers.has(pId) && !playerTimeoutsRef.current.has(pId)) {
+          if (next[pId] !== pos) {
+            next[pId] = pos;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : cur;
+    });
+  }, [positions, lastRoll, snakes, ladders]);
+
+  React.useEffect(() => {
+    return () => {
+      clearAllTimeouts();
+    };
+  }, []);
+
   const playerOrder = new Map(room?.players?.map((player, index) => [player.id, index]) || []);
-  const tokenPlayers = Object.entries(positions)
+  const tokenPlayers = Object.entries(visualPositions)
     .filter(([, pos]) => Number.isInteger(pos) && pos >= 1 && pos <= 100)
     .sort(([a], [b]) => (playerOrder.get(a) ?? Infinity) - (playerOrder.get(b) ?? Infinity));
   const playersByCell = new Map<number, string[]>();
@@ -298,10 +419,13 @@ export const SnakesLaddersBoard: React.FC<SnakesLaddersBoardProps> = ({ gameStat
           const playerObj = room?.players?.find(p => p.id === pId);
           const customColor = playerObj?.color?.match(/#(?:[0-9a-fA-F]{3}){1,2}\b/)?.[0] || TOKEN_COLORS[idx % TOKEN_COLORS.length];
 
+          const motion = motionStates[pId] || 'idle';
+          const motionClass = motion === 'hopping' ? 'is-hopping' : motion === 'sliding' ? 'is-sliding' : '';
+
           return (
             <div
               key={pId}
-              className={`player-token ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
+              className={`player-token ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${motionClass}`}
               role="img"
               aria-label={`${playerObj?.name ?? `Player ${idx + 1}`} on square ${pos}${pId === gameState.activePlayerId ? ', active player' : ''}`}
               style={{

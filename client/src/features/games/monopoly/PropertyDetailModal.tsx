@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Home, Building2, Hammer, Landmark, Coins, Trash2 } from 'lucide-react';
+import { X, Home, Building2, Hammer, Landmark, Coins, Trash2, Handshake } from 'lucide-react';
 import { MONOPOLY_BOARD, colorGroupMap } from './boardData';
 import type { MonopolyGameState, MonopolyRoom } from './types';
 import './monopoly.css';
@@ -15,6 +15,7 @@ export interface PropertyDetailModalProps {
   onSellProperty: (spaceIndex: number) => void;
   onBuildHouse: (spaceIndex: number) => void;
   onSellHouse: (spaceIndex: number) => void;
+  onOpenTradeWith?: (targetPlayerId: string, initialRequestedProp?: number) => void;
 }
 
 /**
@@ -35,7 +36,8 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   onUnmortgage,
   onSellProperty,
   onBuildHouse,
-  onSellHouse
+  onSellHouse,
+  onOpenTradeWith
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -82,7 +84,7 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   const spaceOwner = isSpaceOwned ? room?.players?.find(p => p.id === prop.ownerId) : null;
   const isOwnedByMe = !!(prop && prop.ownerId === currentUserId);
   const isSpaceMortgaged = !!(prop && prop.mortgaged);
-  const headerColor = space.group ? (colorGroupMap[space.group] || '#7b2cbf') : '#ffffff';
+  const headerColor = space.group ? (colorGroupMap[space.group] || '#dca354') : '#ffffff';
   const mortgageEnabled = gameState.gameSpecificState?.config?.mortgage !== false;
   const cashValue = gameState.gameSpecificState?.cash?.[currentUserId] ?? 0;
   const houseCost = space.houseCost ?? 0;
@@ -109,12 +111,12 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
     }} ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${space.name} property details`}>
       <div className="glass-panel monopoly-detail-card" style={{
         width: '320px',
-        background: 'rgba(30, 20, 50, 0.95)',
-        border: `1.5px solid ${space.group ? headerColor : 'rgba(255,255,255,0.15)'}`,
+        background: '#102436',
+        border: `1.5px solid ${space.group ? headerColor : 'rgba(210,161,101,0.35)'}`,
         borderRadius: '16px',
         overflow: 'hidden',
         position: 'relative',
-        boxShadow: `0 20px 50px rgba(0,0,0,0.5), 0 0 30px ${space.group ? headerColor : 'rgba(123,44,191,0.1)'}30`,
+        boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
         display: 'flex',
         flexDirection: 'column',
         maxHeight: '100%'
@@ -330,6 +332,41 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
                 <Trash2 size={13} /> Sell (${Math.floor((space.price || 0) * 0.5)})
               </button>
             </div>
+          </div>
+        )}
+
+        {!isOwnedByMe && spaceOwner && spaceOwner.id !== currentUserId && !gameState.gameSpecificState.bankrupt?.[spaceOwner.id] && onOpenTradeWith && (
+          <div style={{
+            padding: '14px 16px',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(0,0,0,0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            flexShrink: 0
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenTradeWith(spaceOwner.id, spaceIndex);
+              }}
+              className="btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '7px',
+                padding: '10px',
+                fontSize: '12.5px',
+                fontWeight: 'bold',
+                background: 'linear-gradient(135deg, var(--accent-purple) 0%, #4a0e78 100%)',
+                boxShadow: '0 4px 15px rgba(123,44,191,0.35)',
+                cursor: 'pointer'
+              }}
+            >
+              <Handshake size={14} /> Propose Trade with {spaceOwner.name}
+            </button>
           </div>
         )}
       </div>

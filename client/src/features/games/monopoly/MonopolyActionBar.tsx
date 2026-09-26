@@ -34,8 +34,8 @@ export const MonopolyActionBar: React.FC<MonopolyActionBarProps> = ({
       <div className="monopoly-action-controls">
         {(subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') && (
           <div className="monopoly-action-dice" aria-label="Current dice">
-            <DiceDisplay value={isRolling ? diceValues[0] : (lastRoll?.[0] || 1)} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
-            <DiceDisplay value={isRolling ? diceValues[1] : (lastRoll?.[1] || 1)} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
+            <DiceDisplay value={isRolling ? diceValues[0] : (lastRoll?.[0] || 1)} fallbackValue={1} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
+            <DiceDisplay value={isRolling ? diceValues[1] : (lastRoll?.[1] || 2)} fallbackValue={2} rolling={isRolling} onClick={isMyTurn && !isRolling ? triggerRoll : undefined} />
           </div>
         )}
         {isMyTurn ? <>

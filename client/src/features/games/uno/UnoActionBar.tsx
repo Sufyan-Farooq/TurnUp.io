@@ -40,8 +40,14 @@ export const UnoActionBar: React.FC<UnoActionBarProps> = ({ gameState, currentUs
           </button>
         )}
         {!isPreview && canDeclareUno && (
-          <button type="button" onClick={onDeclareUno} disabled={hasDeclaredUno} className="uno-action-button uno-action-button--uno">
-            <Megaphone aria-hidden="true" /> {hasDeclaredUno ? 'UNO declared' : 'Call UNO'}
+          <button
+            type="button"
+            onClick={onDeclareUno}
+            disabled={hasDeclaredUno}
+            className={`uno-action-button uno-action-button--uno ${hasDeclaredUno ? 'is-declared' : 'is-urgent'}`}
+            aria-label={hasDeclaredUno ? 'UNO already declared' : 'Call UNO!'}
+          >
+            <Megaphone aria-hidden="true" /> {hasDeclaredUno ? 'UNO declared ✓' : 'Call UNO!'}
           </button>
         )}
       </div>

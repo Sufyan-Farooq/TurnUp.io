@@ -137,7 +137,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
             </div>
           </div>
         ) : (
-          <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(108, 60, 233, 0.2)', color: 'var(--muted)', fontSize: '13px', fontFamily: "'Manrope', sans-serif", display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(220, 163, 84, 0.35)', color: 'var(--muted)', fontSize: '13px', fontFamily: "'Manrope', sans-serif", display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Hourglass size={14} /> Waiting for <strong style={{ color: 'var(--cloud)' }}>{getPlayerDetails(room.hostId).name}</strong> to pick the next match…
           </div>
         )}

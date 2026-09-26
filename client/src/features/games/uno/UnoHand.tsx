@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { Megaphone } from 'lucide-react';
 import type { UnoGameStateLike } from './uno.types';
 import { getOwnHand, isCardPlayable } from './uno.types';
-import { getUnoCardSymbol } from './UnoBoard';
+import { getUnoCardSymbol, getUnoCardCornerText } from './UnoBoard';
 
 export interface UnoHandProps {
   gameState: UnoGameStateLike;
@@ -12,6 +13,8 @@ export interface UnoHandProps {
   onPlayCard: (cardIndex: number, selectedColor?: 'red' | 'green' | 'blue' | 'yellow') => void;
   /** Play two identical-value cards at once (only when `rules.cardDoubles` is true). */
   onPlayDoubles: (cardIndices: number[], selectedColor?: 'red' | 'green' | 'blue' | 'yellow') => void;
+  /** Declare UNO when having 1 or 2 cards. */
+  onDeclareUno?: () => void;
   /** Surfaced instead of calling `alert()` for invalid card-selection attempts. */
   onError: (message: string) => void;
 }
@@ -24,7 +27,7 @@ export interface UnoHandProps {
  * Supports both tap-to-select-then-play (for doubles, when `rules.cardDoubles`
  * is enabled) and legacy single-tap-to-play (when doubles are disabled).
  */
-export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPreview = false, onPlayCard, onPlayDoubles, onError }) => {
+export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPreview = false, onPlayCard, onPlayDoubles, onDeclareUno, onError }) => {
   const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
 
   const hand = getOwnHand(gameState, currentUserId);
@@ -34,6 +37,8 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
   const rules = gameState.gameSpecificState.rules || { cardStacking: true, cardDoubles: true };
   const pendingDraw = gameState.gameSpecificState.pendingDrawCount || 0;
   const isPlayOrPass = gameState.subState === 'PLAY_OR_PASS';
+  const canDeclareUno = hand.length > 0 && hand.length <= 2;
+  const hasDeclaredUno = !!gameState.gameSpecificState.unoDeclared?.[currentUserId];
 
   const isPlayableNow = (cardIndex: number) => {
     const card = hand[cardIndex];
@@ -61,10 +66,24 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
   return (
     <div className="uno-hand-wrap">
       <div className="uno-hand-heading">
-        <div>
+        <div className="uno-hand-heading-left">
           <span className="uno-hand-kicker">Your hand</span>
           <strong>{isPreview ? 'Not dealt' : `${hand.length} card${hand.length === 1 ? '' : 's'}`}</strong>
         </div>
+
+        {!isPreview && canDeclareUno && onDeclareUno && (
+          <button
+            type="button"
+            className={`uno-hand-callout-btn ${hasDeclaredUno ? 'is-declared' : 'is-urgent'}`}
+            onClick={hasDeclaredUno ? undefined : onDeclareUno}
+            disabled={hasDeclaredUno}
+            aria-label={hasDeclaredUno ? 'UNO already declared' : 'Call UNO now'}
+          >
+            <Megaphone size={15} strokeWidth={2.5} />
+            <span>{hasDeclaredUno ? 'UNO DECLARED ✓' : 'CALL UNO!'}</span>
+          </button>
+        )}
+
         <span className="uno-hand-hint">
           {isPreview ? 'Cards are dealt when the match starts' : isMyTurn ? (rules.cardDoubles ? 'Select one card, or pair matching values' : 'Choose a highlighted card') : 'Cards unlock on your turn'}
         </span>
@@ -87,6 +106,23 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
             <button type="button" className="uno-selection-cancel" onClick={() => setSelectedCardIndices([])}>
               Clear
             </button>
+          </div>
+        </div>
+      )}
+
+      {!isPreview && isMyTurn && pendingDraw > 0 && (
+        <div className="uno-hand-penalty-alert" role="alert">
+          <div className="uno-hand-penalty-pill">
+            <span className="uno-hand-penalty-plus">+</span>
+            <span className="uno-hand-penalty-num">{pendingDraw}</span>
+          </div>
+          <div className="uno-hand-penalty-content">
+            <span className="uno-hand-penalty-title">Draw Penalty Active On You</span>
+            <span className="uno-hand-penalty-sub">
+              {rules.cardStacking
+                ? `Play a matching draw card (+2 or +4) to stack, or click Draw pile to take ${pendingDraw} cards`
+                : `Card stacking is disabled. Click Draw pile to take ${pendingDraw} cards`}
+            </span>
           </div>
         </div>
       )}
@@ -147,9 +183,9 @@ export const UnoHand: React.FC<UnoHandProps> = ({ gameState, currentUserId, isPr
                 <span className="uno-drawn-badge">drawn</span>
               )}
               {playable && <span className="uno-playable-label">playable</span>}
-              <span className="uno-card-corner">{card.value.toUpperCase()}</span>
+              <span className="uno-card-corner">{getUnoCardCornerText(card.value)}</span>
               <span className="uno-card-center-symbol">{getUnoCardSymbol(card.value)}</span>
-              <span className="uno-card-corner uno-card-corner--bottom">{card.value.toUpperCase()}</span>
+              <span className="uno-card-corner uno-card-corner--bottom">{getUnoCardCornerText(card.value)}</span>
             </button>
           );
         })}

@@ -72,6 +72,7 @@ const EVENT_SOUNDS: Record<string, string> = {
   DICE_ROLLED: SOUNDS.dice,
   AUCTION_BID: SOUNDS.bid,
   TRADE_ACCEPTED: SOUNDS.tradeAccept,
+  TRADE_COUNTERED: SOUNDS.tradeAccept,
   TRADE_REJECTED: SOUNDS.tradeDecline,
   PROPERTY_MORTGAGED: SOUNDS.mortgage,
   PROPERTY_UNMORTGAGED: SOUNDS.mortgageLift,
@@ -184,6 +185,8 @@ export function formatGameEvent(evt: GameEvent, ctx: LogFormatContext): string |
       return `MONOPOLY: Auction for ${propName(payload.spaceIndex)} cancelled with no bids.`;
     case 'TRADE_INITIATED':
       return `MONOPOLY: ${name} proposed a trade to ${ctx.getPlayerName(payload.targetPlayerId)}.`;
+    case 'TRADE_COUNTERED':
+      return `MONOPOLY: ${name} countered the trade offer with ${ctx.getPlayerName(payload.receiverId)}.`;
     case 'TRADE_REJECTED':
       return `MONOPOLY: Trade proposal between ${ctx.getPlayerName(payload.proposerId)} and ${ctx.getPlayerName(payload.receiverId)} was rejected.`;
     case 'TRADE_ACCEPTED':

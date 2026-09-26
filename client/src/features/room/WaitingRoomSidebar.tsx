@@ -1,11 +1,12 @@
 import React from 'react';
-import { Ban, Check, CircleAlert, Cloud, CloudOff, Crown, Hourglass, Rocket, X } from 'lucide-react';
+import { Ban, Check, CircleAlert, Cloud, CloudOff, Crown, Handshake, Hourglass, Rocket, Timer, X, Palette } from 'lucide-react';
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { getPlayerColorHex } from '../../theme/playerColors';
 import type { LobbySettings, LobbySettingsPatch, Room } from '../../types/game';
 import type { SettingsSyncState } from '../../hooks/useRoom';
+import type { VoteKickState } from './types';
 
 export interface WaitingRoomSidebarProps {
   room: Room | null;
@@ -16,7 +17,12 @@ export interface WaitingRoomSidebarProps {
   onUpdateSettings: (settings: LobbySettingsPatch) => boolean;
   onKickPlayer: (targetPlayerId: string) => void;
   onStartGame: () => void;
+  onOpenAppearancePicker?: () => void;
   onClose?: () => void;
+  voteKickState?: VoteKickState | null;
+  voteKickCountdown?: number;
+  onCastVote?: (vote: boolean) => void;
+  onOpenVoteKickPanel?: () => void;
 }
 
 const DEFAULT_SETTINGS: LobbySettings = {
@@ -58,7 +64,22 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ id, label, description, checked, 
   </div>
 );
 
-export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({ room, currentPlayerId, isConnected, settingsSyncState, settingsSyncMessage, onUpdateSettings, onKickPlayer, onStartGame, onClose }) => {
+export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
+  room,
+  currentPlayerId,
+  isConnected,
+  settingsSyncState,
+  settingsSyncMessage,
+  onUpdateSettings,
+  onKickPlayer,
+  onStartGame,
+  onOpenAppearancePicker,
+  onClose,
+  voteKickState,
+  voteKickCountdown,
+  onCastVote,
+  onOpenVoteKickPanel,
+}) => {
   const isHost = room?.hostId === currentPlayerId;
   const settings = { ...DEFAULT_SETTINGS, ...room?.lobbySettings };
   const players = room?.players ?? [];
@@ -83,6 +104,11 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({ room, cu
           ? `Waiting for ${waitingPlayers.map(player => player.name).join(', ')} to be ready and online.`
           : 'Everyone is ready. Start when you are.';
 
+  const targetPlayerId = voteKickState?.targetPlayerId;
+  const yesCount = voteKickState ? Object.values(voteKickState.votes || {}).filter(v => v === true).length : 0;
+  const requiredVotes = voteKickState?.requiredVotes ?? 0;
+  const myVote = currentPlayerId && voteKickState?.votes ? voteKickState.votes[currentPlayerId] : undefined;
+
   return (
     <aside className="waiting-room" aria-label="Lobby players and settings">
       <header className="waiting-room-header">
@@ -95,16 +121,117 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({ room, cu
         <div className="lobby-player-list">
           {players.map((player, index) => {
             const isPlayerHost = player.id === room?.hostId;
+            const isTarget = targetPlayerId === player.id;
+            const isTargetMe = player.id === currentPlayerId;
+
             return (
-              <div key={player.id} className="lobby-player-row">
+              <div key={player.id} className={`lobby-player-row ${isTarget ? 'is-votekick-target' : ''}`}>
                 <Avatar name={player.name} color={getPlayerColorHex(player.color, index)} size={32} />
                 <div className="lobby-player-copy">
                   <span className="lobby-player-name">{player.name}{player.id === currentPlayerId ? ' (you)' : ''}</span>
                   <span className={`lobby-player-status ${player.connected && player.ready ? 'is-ready' : ''}`}>{!player.connected ? 'Reconnecting' : player.ready ? 'Ready' : 'Not ready'}</span>
+                  {isTarget && (
+                    <div className="lobby-votekick-inline">
+                      <span className="lobby-votekick-tag" title="Vote kick in progress">
+                        <Ban size={10} color="var(--accent-pink)" />
+                        <span>Vote: {yesCount}/{requiredVotes}</span>
+                        {voteKickCountdown !== undefined && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                            <Timer size={10} /> {voteKickCountdown}s
+                          </span>
+                        )}
+                      </span>
+                      {myVote !== undefined && !isTargetMe && (
+                        <span style={{ color: myVote ? 'var(--accent-pink)' : 'var(--accent-green)', fontSize: '10px', fontStyle: 'italic' }}>
+                          You voted: {myVote ? 'Kick' : 'Keep'}
+                        </span>
+                      )}
+                      {isTargetMe && (
+                        <span style={{ color: 'var(--accent-pink)', fontSize: '10px', fontStyle: 'italic' }}>
+                          Vote against you
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {isPlayerHost && <Badge variant="purple" icon={<Crown size={11} />}>Host</Badge>}
-                {!isPlayerHost && player.id !== currentPlayerId && (
-                  <Button type="button" variant="ghost" className="lobby-vote-button" onClick={() => onKickPlayer(player.id)} aria-label={`Start a vote to remove ${player.name}`} title="Start vote to remove"><Ban size={15} /></Button>
+                {isPlayerHost && <Badge variant="host" icon={<Crown size={11} />}>Host</Badge>}
+                {player.id === currentPlayerId && onOpenAppearancePicker && (
+                  <button
+                    type="button"
+                    onClick={onOpenAppearancePicker}
+                    className="lobby-change-appearance-btn"
+                    title="Change token color"
+                    aria-label="Change token color"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(210, 161, 101, 0.4)',
+                      borderRadius: '8px',
+                      padding: '5px 8px',
+                      color: '#f0bc64',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      fontFamily: "'Space Mono', monospace"
+                    }}
+                  >
+                    <Palette size={13} />
+                    <span>Color</span>
+                  </button>
+                )}
+                {isTarget ? (
+                  !isTargetMe && myVote === undefined ? (
+                    <div className="lobby-quick-vote">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        className="lobby-quick-vote-btn is-kick"
+                        onClick={() => onCastVote?.(true)}
+                        aria-label={`Vote to kick ${player.name}`}
+                        title={`Vote to kick ${player.name}`}
+                      >
+                        <Ban size={12} /> Kick
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="lobby-quick-vote-btn is-keep"
+                        onClick={() => onCastVote?.(false)}
+                        aria-label={`Vote to keep ${player.name}`}
+                        title={`Vote to keep ${player.name}`}
+                      >
+                        <Handshake size={12} /> Keep
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lobby-votekick-badge"
+                      onClick={onOpenVoteKickPanel}
+                      title="Click to view vote details"
+                      aria-label={`Vote kick in progress for ${player.name}. Click to view details.`}
+                    >
+                      <Ban size={12} color="var(--accent-pink)" />
+                      <span>{yesCount}/{requiredVotes}</span>
+                      {voteKickCountdown !== undefined && <span>{voteKickCountdown}s</span>}
+                    </button>
+                  )
+                ) : (
+                  !isPlayerHost && player.id !== currentPlayerId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="lobby-vote-button"
+                      onClick={() => onKickPlayer(player.id)}
+                      disabled={!!voteKickState}
+                      aria-label={voteKickState ? 'Another vote kick is already active' : `Start a vote to remove ${player.name}`}
+                      title={voteKickState ? 'Another vote kick is already active' : 'Start vote to remove'}
+                    >
+                      <Ban size={15} />
+                    </Button>
+                  )
                 )}
               </div>
             );

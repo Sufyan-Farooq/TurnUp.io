@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Lock, Palmtree, Siren, Home, Building2, Unlock } from 'lucide-react';
 import { MONOPOLY_BOARD, colorGroupMap, getMonopolySpaceGridCoords, getMonopolyCoords, getSpaceSide, getMonopolySpaceIcon, AVATAR_COLORS } from './boardData';
 import { PropertyDetailModal } from './PropertyDetailModal';
 import { AuctionOverlay } from './AuctionOverlay';
 import { DiceDisplay, useRollAnimation } from './DiceDisplay';
 import { getMonopolyTokenSlot } from './tokenGeometry';
+import { getMonopolyStepPath } from './monopolyPath';
 import type { MonopolyGameState, MonopolyRoom } from './types';
 import './monopoly.css';
 
@@ -24,6 +25,7 @@ export interface MonopolyBoardProps {
   onDeclareBankruptcy: () => void;
   onBid: (amount: number) => void;
   onFold: () => void;
+  onOpenTradeWith?: (targetPlayerId: string, initialRequestedProp?: number) => void;
   /** Optional trailing game-log lines shown under the dice in the center panel. */
   recentLogs?: string[];
 }
@@ -38,6 +40,10 @@ const getSolidColor = (c: string, fallback: string): string => {
 };
 
 const TOKEN_COLORS = ['#ff5c66', '#4e8cff', '#3fbf7f', '#ffc247', '#a782ff', '#ff9b54', '#51c8d4', '#f777b5'];
+const EMPTY_POSITIONS: Record<string, number> = {};
+const EMPTY_JAIL: Record<string, boolean> = {};
+const EMPTY_PROPERTIES: Record<number, any> = {};
+const EMPTY_BANKRUPT: Record<string, boolean> = {};
 
 /**
  * The 48-space Monopoly board: grid of spaces + player tokens + the center
@@ -61,6 +67,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   onDeclareBankruptcy,
   onBid,
   onFold,
+  onOpenTradeWith,
   recentLogs = []
 }) => {
   const [selectedSpaceIndex, setSelectedSpaceIndex] = useState<number | null>(null);
@@ -68,9 +75,10 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   const lastRoll = gameState.gameSpecificState?.lastRoll;
   const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice, gameState.historyLength ?? 0, lastRoll);
 
-  const properties = gameState.gameSpecificState?.properties || {};
-  const positions = gameState.gameSpecificState?.positions || {};
-  const bankrupt = gameState.gameSpecificState?.bankrupt || {};
+  const properties = gameState.gameSpecificState?.properties || EMPTY_PROPERTIES;
+  const positions = gameState.gameSpecificState?.positions || EMPTY_POSITIONS;
+  const inJail = gameState.gameSpecificState?.inJail || EMPTY_JAIL;
+  const bankrupt = gameState.gameSpecificState?.bankrupt || EMPTY_BANKRUPT;
   const subState = gameState.subState;
   const isMyTurn = gameState.activePlayerId === currentUserId;
   const cashValue = gameState.gameSpecificState?.cash?.[currentUserId] || 0;
@@ -80,8 +88,112 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   const activePlayer = room?.players?.find(p => p.id === gameState.activePlayerId);
   const activePlayerName = activePlayer ? activePlayer.name : 'Unknown';
 
+  const [visualPositions, setVisualPositions] = useState<Record<string, number>>(positions);
+  const [motionStates, setMotionStates] = useState<Record<string, 'hopping' | 'sliding' | 'idle'>>({});
+  const prevPositionsRef = useRef<Record<string, number>>(positions);
+  const playerTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
+  const visualPositionsRef = useRef<Record<string, number>>(positions);
+  visualPositionsRef.current = visualPositions;
+
+  const clearPlayerTimeouts = (pId: string) => {
+    const timeouts = playerTimeoutsRef.current.get(pId);
+    if (timeouts) {
+      timeouts.forEach(clearTimeout);
+      playerTimeoutsRef.current.delete(pId);
+    }
+  };
+
+  const clearAllTimeouts = () => {
+    playerTimeoutsRef.current.forEach(timeouts => timeouts.forEach(clearTimeout));
+    playerTimeoutsRef.current.clear();
+  };
+
+  useEffect(() => {
+    const prev = prevPositionsRef.current;
+    prevPositionsRef.current = positions;
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      clearAllTimeouts();
+      setVisualPositions(positions);
+      setMotionStates({});
+      return;
+    }
+
+    const animatingPlayers = new Set<string>();
+
+    for (const [pId, toPos] of Object.entries(positions)) {
+      const fromPos = prev[pId];
+      if (fromPos !== undefined && fromPos !== toPos) {
+        animatingPlayers.add(pId);
+        clearPlayerTimeouts(pId);
+
+        const currentVisual = visualPositionsRef.current[pId];
+        const effectiveFrom = (currentVisual !== undefined && currentVisual !== toPos)
+          ? currentVisual
+          : fromPos;
+
+        const result = getMonopolyStepPath(effectiveFrom, toPos, !!inJail[pId]);
+        const stepInterval = 170;
+        const playerTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+        if (result.isDirectTeleport) {
+          setMotionStates(cur => ({ ...cur, [pId]: 'sliding' }));
+          setVisualPositions(cur => ({ ...cur, [pId]: result.finalSpace }));
+          const t = setTimeout(() => {
+            setMotionStates(cur => ({ ...cur, [pId]: 'idle' }));
+            playerTimeoutsRef.current.delete(pId);
+          }, 550);
+          playerTimeouts.push(t);
+        } else {
+          result.steps.forEach((step, idx) => {
+            const t = setTimeout(() => {
+              setVisualPositions(cur => ({ ...cur, [pId]: step }));
+              setMotionStates(cur => ({ ...cur, [pId]: 'hopping' }));
+            }, idx * stepInterval);
+            playerTimeouts.push(t);
+          });
+
+          const stepsEnd = result.steps.length * stepInterval;
+          const endT = setTimeout(() => {
+            setVisualPositions(cur => ({ ...cur, [pId]: result.finalSpace }));
+            setMotionStates(cur => ({ ...cur, [pId]: 'idle' }));
+            playerTimeoutsRef.current.delete(pId);
+          }, stepsEnd + 40);
+          playerTimeouts.push(endT);
+        }
+
+        playerTimeoutsRef.current.set(pId, playerTimeouts);
+      }
+    }
+
+    // Authoritative sync: Any player who is NOT actively animating and has no pending timeouts
+    // must match their authoritative server position. This prevents any token from ever being stranded.
+    setVisualPositions(cur => {
+      let changed = false;
+      const next = { ...cur };
+      for (const [pId, pos] of Object.entries(positions)) {
+        if (!animatingPlayers.has(pId) && !playerTimeoutsRef.current.has(pId)) {
+          if (next[pId] !== pos) {
+            next[pId] = pos;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : cur;
+    });
+  }, [positions, inJail]);
+
+  useEffect(() => {
+    return () => {
+      clearAllTimeouts();
+    };
+  }, []);
+
   // Precompute shared-cell token offsets (multiple players on the same space).
-  const tokenPlayers = Object.entries(positions).filter(([pId, pos]) => !bankrupt[pId] && Number.isInteger(pos) && pos >= 0 && pos < MONOPOLY_BOARD.length);
+  const tokenPlayers = Object.entries(visualPositions).filter(([pId, pos]) => !bankrupt[pId] && Number.isInteger(pos) && pos >= 0 && pos < MONOPOLY_BOARD.length);
   const playerOrder = new Map(room.players.map((player, index) => [player.id, index]));
   tokenPlayers.sort(([a], [b]) => (playerOrder.get(a) ?? Infinity) - (playerOrder.get(b) ?? Infinity));
   const sharedCoords: Record<number, string[]> = {};
@@ -107,6 +219,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
             onSellProperty={onSellProperty}
             onBuildHouse={onBuildHouse}
             onSellHouse={onSellHouse}
+            onOpenTradeWith={onOpenTradeWith}
           />
         )}
 
@@ -120,13 +233,15 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
           <div className="monopoly-dice-stage">
             <DiceDisplay
-              value={isRolling ? diceValues[0] : (lastRoll?.[0] || 0)}
+              value={isRolling ? diceValues[0] : (lastRoll?.[0] || diceValues[0] || 3)}
+              fallbackValue={3}
               rolling={isRolling}
               size={120}
               onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
             />
             <DiceDisplay
-              value={isRolling ? diceValues[1] : (lastRoll?.[1] || 0)}
+              value={isRolling ? diceValues[1] : (lastRoll?.[1] || diceValues[1] || 4)}
+              fallbackValue={4}
               rolling={isRolling}
               size={120}
               onClick={isMyTurn && !isRolling && (subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') ? triggerRoll : undefined}
@@ -219,16 +334,16 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         const ownerPlayer = isOwned ? room?.players?.[ownerIdx] : null;
         const rawOwnerColor = isOwned ? (ownerPlayer?.color || AVATAR_COLORS[ownerIdx % AVATAR_COLORS.length]) : '';
-        const ownerSolidColor = getSolidColor(rawOwnerColor, '#130c24');
+        const ownerSolidColor = getSolidColor(rawOwnerColor, '#132737');
 
-        let backgroundStyle = isCorner ? '#0d061f' : '#130c24';
+        let backgroundStyle = isCorner ? '#0d1a24' : '#132737';
         if (isOwned && !isCorner) {
-          backgroundStyle = `linear-gradient(rgba(19, 12, 36, 0.93), rgba(19, 12, 36, 0.93)), ${ownerSolidColor}`;
+          backgroundStyle = `linear-gradient(rgba(13, 26, 36, 0.93), rgba(13, 26, 36, 0.93)), ${ownerSolidColor}`;
         }
 
         const renderHeaderBand = () => {
           if (!space.group) return null;
-          const colorCode = colorGroupMap[space.group || ''] || 'var(--accent-purple)';
+          const colorCode = colorGroupMap[space.group || ''] || 'var(--gold)';
           return <div style={{ backgroundColor: colorCode, width: '100%', height: '8px', borderRadius: '1px', flexShrink: 0 }} />;
         };
 
@@ -291,7 +406,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
               border: isActivePos ? '3px solid var(--accent-green)' : undefined,
               boxShadow: isActivePos ? '0 0 15px var(--accent-green), inset 0 0 8px rgba(56, 176, 0, 0.1)' : undefined,
               display: 'flex', flexDirection: 'column', padding: 0, boxSizing: 'border-box',
-              background: '#130c24', borderRadius: '4px', overflow: 'hidden', position: 'relative'
+              background: '#132737', borderRadius: '4px', overflow: 'hidden', position: 'relative'
             }}>
               <div style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 4px', fontSize: '9px', fontWeight: 'bold', color: '#fff', textAlign: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                 Passing by
@@ -459,12 +574,15 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
         const customColor = getSolidColor(playerObj?.color || '', TOKEN_COLORS[idx % TOKEN_COLORS.length]);
         const isHovered = hoveredPlayerId === pId;
 
-        const tokenProperties = isHovered ? { '--token-color': customColor || 'var(--accent-purple)' } as React.CSSProperties : {};
+        const tokenProperties = isHovered ? { '--token-color': customColor || 'var(--gold)' } as React.CSSProperties : {};
+
+        const motion = motionStates[pId] || 'idle';
+        const motionClass = motion === 'hopping' ? 'is-hopping' : motion === 'sliding' ? 'is-sliding' : '';
 
         return (
           <div
             key={pId}
-            className={`monopoly-token ${isHovered ? 'pulsing-token' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''}`}
+            className={`monopoly-token ${isHovered ? 'pulsing-token' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${motionClass}`}
             style={{
               left: `${coords.x + slot.x}px`,
               top: `${coords.y + slot.y}px`,

@@ -65,7 +65,7 @@ export const AuctionOverlay: React.FC<AuctionOverlayProps> = ({ gameState, room,
   const canAffordBid = availableCash >= nextBid;
   const activeBidderName = room?.players?.find(player => player.id === activeBidderId)?.name || 'Unknown player';
   const highestBidderName = auctionHighestBidderId ? room?.players?.find(player => player.id === auctionHighestBidderId)?.name || 'Unknown player' : 'No bids yet';
-  const propertyColor = colorGroupMap[space.group || ''] || '#7b2cbf';
+  const propertyColor = colorGroupMap[space.group || ''] || '#dca354';
 
   return (
     <div ref={dialogRef} className="monopoly-auction-overlay" role="dialog" aria-modal="true" aria-labelledby="monopoly-auction-title" tabIndex={-1}>

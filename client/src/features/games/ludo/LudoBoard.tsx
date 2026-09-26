@@ -5,6 +5,7 @@ import { getPlayerColorPalette, getLudoColorName } from '../../../theme/playerCo
 import { getSixLudoCoords } from './sixPlayerGeometry';
 import { SixPlayerBoardSurface } from './SixPlayerBoardSurface';
 import { getTokenDestination, getTokenStackOffset } from './tokenPlacement';
+import { getLudoStepPath } from './ludoPath';
 import './ludo.css';
 
 export interface LudoGameSpecificState {
@@ -27,6 +28,8 @@ export interface LudoBoardProps {
   currentUserId: string;
   onMoveToken: (tokenIndex: number) => void;
 }
+
+const EMPTY_TOKENS: Record<string, number[]> = {};
 
 // 4-player track: 52 cells, starting near each corner's launch cell.
 const LUDO_TRACK_COORDS: [number, number][] = [
@@ -180,9 +183,170 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
     }
   }
 
+  // --- Visual Animated Token Positions & Stepping Motion ---
+  const tokens = gameState.gameSpecificState.tokens || EMPTY_TOKENS;
+  const [visualTokens, setVisualTokens] = React.useState<Record<string, number[]>>(tokens);
+  const [motionStates, setMotionStates] = React.useState<Record<string, 'hopping' | 'launching' | 'retreating' | 'idle'>>({});
+  const prevTokensRef = React.useRef<Record<string, number[]>>(tokens);
+  const tokenTimeoutsRef = React.useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
+  const visualTokensRef = React.useRef<Record<string, number[]>>(tokens);
+  visualTokensRef.current = visualTokens;
+
+  const clearTokenTimeouts = (tokenKey: string) => {
+    const timeouts = tokenTimeoutsRef.current.get(tokenKey);
+    if (timeouts) {
+      timeouts.forEach(clearTimeout);
+      tokenTimeoutsRef.current.delete(tokenKey);
+    }
+  };
+
+  const clearAllTokenTimeouts = () => {
+    tokenTimeoutsRef.current.forEach(timeouts => timeouts.forEach(clearTimeout));
+    tokenTimeoutsRef.current.clear();
+  };
+
+  React.useEffect(() => {
+    const prev = prevTokensRef.current;
+    prevTokensRef.current = tokens;
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      clearAllTokenTimeouts();
+      setVisualTokens(tokens);
+      setMotionStates({});
+      return;
+    }
+
+    const animatingTokens = new Set<string>();
+
+    for (const [pId, tokenPositions] of Object.entries(tokens)) {
+      const prevPositions = prev[pId];
+      if (!prevPositions) continue;
+      const playerIdx = getPlayerBaseIndex(room, gameState, pId);
+
+      tokenPositions.forEach((toPos, tIdx) => {
+        const fromPos = prevPositions[tIdx];
+        if (fromPos !== undefined && fromPos !== toPos) {
+          const tokenKey = `${pId}-${tIdx}`;
+          animatingTokens.add(tokenKey);
+          clearTokenTimeouts(tokenKey);
+
+          const currentVisual = visualTokensRef.current[pId]?.[tIdx];
+          const effectiveFrom = (currentVisual !== undefined && currentVisual !== toPos)
+            ? currentVisual
+            : fromPos;
+
+          const result = getLudoStepPath(trackLength, playerIdx, effectiveFrom, toPos);
+          const currentTokenTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+          if (result.type === 'base_exit') {
+            setMotionStates(cur => ({ ...cur, [tokenKey]: 'launching' }));
+            setVisualTokens(cur => {
+              const pTokens = [...(cur[pId] || tokenPositions)];
+              pTokens[tIdx] = result.finalPos;
+              return { ...cur, [pId]: pTokens };
+            });
+            const t = setTimeout(() => {
+              setMotionStates(cur => ({ ...cur, [tokenKey]: 'idle' }));
+              tokenTimeoutsRef.current.delete(tokenKey);
+            }, 380);
+            currentTokenTimeouts.push(t);
+          } else if (result.type === 'retreat') {
+            setMotionStates(cur => ({ ...cur, [tokenKey]: 'retreating' }));
+            setVisualTokens(cur => {
+              const pTokens = [...(cur[pId] || tokenPositions)];
+              pTokens[tIdx] = result.finalPos;
+              return { ...cur, [pId]: pTokens };
+            });
+            const t = setTimeout(() => {
+              setMotionStates(cur => ({ ...cur, [tokenKey]: 'idle' }));
+              tokenTimeoutsRef.current.delete(tokenKey);
+            }, 450);
+            currentTokenTimeouts.push(t);
+          } else if (result.type === 'step_path') {
+            const stepInterval = 170;
+            result.steps.forEach((step, idx) => {
+              const t = setTimeout(() => {
+                setVisualTokens(cur => {
+                  const pTokens = [...(cur[pId] || tokenPositions)];
+                  pTokens[tIdx] = step;
+                  return { ...cur, [pId]: pTokens };
+                });
+                setMotionStates(cur => ({ ...cur, [tokenKey]: 'hopping' }));
+              }, idx * stepInterval);
+              currentTokenTimeouts.push(t);
+            });
+
+            const stepsEnd = result.steps.length * stepInterval;
+            const endT = setTimeout(() => {
+              setVisualTokens(cur => {
+                const pTokens = [...(cur[pId] || tokenPositions)];
+                pTokens[tIdx] = result.finalPos;
+                return { ...cur, [pId]: pTokens };
+              });
+              setMotionStates(cur => ({ ...cur, [tokenKey]: 'idle' }));
+              tokenTimeoutsRef.current.delete(tokenKey);
+            }, stepsEnd + 40);
+            currentTokenTimeouts.push(endT);
+          } else {
+            setVisualTokens(cur => {
+              const pTokens = [...(cur[pId] || tokenPositions)];
+              pTokens[tIdx] = result.finalPos;
+              return { ...cur, [pId]: pTokens };
+            });
+            tokenTimeoutsRef.current.delete(tokenKey);
+          }
+
+          if (currentTokenTimeouts.length > 0) {
+            tokenTimeoutsRef.current.set(tokenKey, currentTokenTimeouts);
+          }
+        }
+      });
+    }
+
+    // Authoritative sync: Any token not currently animating and with no pending timeouts
+    // must be synced to its server position.
+    setVisualTokens(cur => {
+      let changed = false;
+      const next = { ...cur };
+      for (const [pId, tokenPositions] of Object.entries(tokens)) {
+        const curTokens = next[pId];
+        if (!curTokens) {
+          next[pId] = [...tokenPositions];
+          changed = true;
+          continue;
+        }
+        let pTokensChanged = false;
+        const updatedTokens = [...curTokens];
+        tokenPositions.forEach((toPos, tIdx) => {
+          const tokenKey = `${pId}-${tIdx}`;
+          if (!animatingTokens.has(tokenKey) && !tokenTimeoutsRef.current.has(tokenKey)) {
+            if (updatedTokens[tIdx] !== toPos) {
+              updatedTokens[tIdx] = toPos;
+              pTokensChanged = true;
+            }
+          }
+        });
+        if (pTokensChanged) {
+          next[pId] = updatedTokens;
+          changed = true;
+        }
+      }
+      return changed ? next : cur;
+    });
+  }, [tokens, trackLength]);
+
+  React.useEffect(() => {
+    return () => {
+      clearAllTokenTimeouts();
+    };
+  }, []);
+
   // --- Ludo Coordinate Precomputations (for stacking multiple tokens sharing a cell) ---
   const ludoSharedCoords: Record<string, { pId: string; tIdx: number }[]> = {};
-  Object.entries(gameState.gameSpecificState.tokens || {}).forEach(([pId, tokenPositions]) => {
+  Object.entries(visualTokens).forEach(([pId, tokenPositions]) => {
     const playerIdx = getPlayerBaseIndex(room, gameState, pId);
     tokenPositions.forEach((pos, tIdx) => {
       const coords = getLudoCoords(room, playerIdx, pos, tIdx, maxPlayers);
@@ -282,7 +446,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
         ))}
 
         {/* Render Tokens */}
-        {Object.entries(gameState.gameSpecificState.tokens || {}).map(([pId, tokenPositions]) => {
+        {Object.entries(visualTokens).map(([pId, tokenPositions]) => {
           const playerIdx = getPlayerBaseIndex(room, gameState, pId);
           const playerObj = room?.players?.find((p) => p.id === pId) || gameState.players?.find((p) => p.id === pId);
           if (!playerObj) return null;
@@ -301,11 +465,14 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
               && (pId === currentUserId)
               && isTokenMoveValid(trackLength, playerIdx, pos, gameState.gameSpecificState.lastRoll);
             const colorName = getLudoColorName(playerIdx, is6 ? 6 : 4);
+            const tokenKey = `${pId}-${tIdx}`;
+            const motion = motionStates[tokenKey] || 'idle';
+            const motionClass = motion === 'hopping' ? 'is-hopping' : motion === 'launching' ? 'is-launching' : motion === 'retreating' ? 'is-retreating' : '';
 
             return (
               <div
                 key={`${pId}-${tIdx}`}
-                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''} ${count > 1 ? 'is-stacked' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${pId === currentUserId ? 'is-mine' : ''} ${pos === trackLength + 5 ? 'is-home' : ''}`}
+                className={`ludo-token color-${colorName} ${isInteractive ? 'interactive' : ''} ${count > 1 ? 'is-stacked' : ''} ${pId === gameState.activePlayerId ? 'is-active-player' : ''} ${pId === currentUserId ? 'is-mine' : ''} ${pos === trackLength + 5 ? 'is-home' : ''} ${motionClass}`}
                 role={isInteractive ? 'button' : 'img'}
                 tabIndex={isInteractive ? 0 : -1}
                 aria-label={`${playerObj.name}'s token ${tIdx + 1}${pos === -1 ? ' in base' : pos === trackLength + 5 ? ' at home' : ` on space ${pos + 1}`}${isInteractive ? ', move this token' : ''}`}

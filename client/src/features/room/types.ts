@@ -33,4 +33,5 @@ export interface VoteKickState {
   requiredVotes: number;
   yesCount?: number;
   noCount?: number;
+  timeoutSeconds?: number;
 }
