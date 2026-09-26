@@ -348,6 +348,16 @@ app.get('/api/users/:id/profile', async (req, res) => {
       return res.status(404).json({ success: false, isGuest: true, message: 'Guest profiles are temporary and not saved to the database.' });
     }
 
+    const authorization = req.header('authorization');
+    const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    const requester = bearerToken ? verifyToken(bearerToken) : null;
+    if (!requester || requester.role !== 'USER') {
+      return res.status(401).json({ success: false, message: 'Sign in to view your profile.' });
+    }
+    if (requester.id !== id) {
+      return res.status(403).json({ success: false, message: 'You can only view your own profile.' });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {

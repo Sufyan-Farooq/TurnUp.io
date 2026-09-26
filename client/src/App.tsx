@@ -720,6 +720,7 @@ export default function App() {
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         currentUser={currentUser}
+        token={auth.token}
         onOpenRegister={() => {
           setShowProfileModal(false);
           auth.logout();

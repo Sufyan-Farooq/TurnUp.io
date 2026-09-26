@@ -27,11 +27,11 @@
   <rect x="5.5" y="5.5" width="53" height="53" rx="13" fill="none" stroke="#f4f0e7" stroke-width="1" stroke-opacity="0.09"/>
 
   <!-- Dynamic Sweeping Turn-Up Loop -->
-  <path d="M 18 36 C 18 44 24 49 32 49 C 41 49 48 43 48 33 C 48 21 37 15 25 15" 
+  <path d="M 18 36 C 18 44 24 49 32 49 C 41 49 48 43 48 33 C 48 21 37 15 25 15"
         stroke="url(#tu-fav-gold)" stroke-width="4.8" stroke-linecap="round" fill="none" filter="url(#tu-fav-shadow)"/>
-  
+
   <!-- Upward Launch Arrowhead -->
-  <path d="M 32 9 L 23 15 L 30 22" 
+  <path d="M 32 9 L 23 15 L 30 22"
         stroke="url(#tu-fav-gold)" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 
   <!-- Three Semantic Player Token Pips (Gold, Teal, Coral) -->

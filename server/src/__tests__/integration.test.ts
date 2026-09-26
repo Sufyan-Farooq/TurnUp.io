@@ -322,4 +322,26 @@ describe('Full room -> game flow (socket.io integration)', () => {
     });
     expect(newRoom.success).toBe(true);
   }, 15000);
+
+  it('requires the registered owner token to read a private profile', async () => {
+    const profileId = '00000000-0000-4000-8000-000000000001';
+    const anonymous = await fetch(`${baseUrl}/api/users/${profileId}/profile`);
+    expect(anonymous.status).toBe(401);
+
+    const guestToken = generateToken({
+      id: '00000000-0000-4000-8000-000000000003', username: 'Guest', role: 'GUEST'
+    });
+    const guest = await fetch(`${baseUrl}/api/users/${profileId}/profile`, {
+      headers: { Authorization: `Bearer ${guestToken}` }
+    });
+    expect(guest.status).toBe(401);
+
+    const otherUserToken = generateToken({
+      id: '00000000-0000-4000-8000-000000000002', username: 'Other', role: 'USER'
+    });
+    const otherUser = await fetch(`${baseUrl}/api/users/${profileId}/profile`, {
+      headers: { Authorization: `Bearer ${otherUserToken}` }
+    });
+    expect(otherUser.status).toBe(403);
+  });
 });

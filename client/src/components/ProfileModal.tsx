@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Trophy,
   Gamepad2,
@@ -23,6 +23,7 @@ export interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: AuthUser | null;
+  token: string;
   onOpenRegister?: () => void;
 }
 
@@ -44,6 +45,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
   onClose,
   currentUser,
+  token,
   onOpenRegister,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
@@ -54,12 +56,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const isGuest = currentUser?.role === 'GUEST';
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     if (!currentUser || isGuest) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${SERVER_URL}/api/users/${currentUser.id}/profile`);
+      const res = await fetch(`${SERVER_URL}/api/users/${currentUser.id}/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.success && data.profile) {
         setProfileData(data.profile);
@@ -72,13 +76,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, isGuest, token]);
 
   useEffect(() => {
     if (isOpen && currentUser && !isGuest) {
       void fetchProfile();
     }
-  }, [isOpen, currentUser?.id, isGuest]);
+  }, [isOpen, currentUser, isGuest, fetchProfile]);
 
   const filteredMatches = useMemo(() => {
     if (!profileData?.matchHistory) return [];
