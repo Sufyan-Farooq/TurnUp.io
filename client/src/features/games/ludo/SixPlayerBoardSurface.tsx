@@ -57,12 +57,12 @@ export const SixPlayerBoardSurface: React.FC<SixPlayerBoardSurfaceProps> = ({ ac
 
       {/* 6 Center Goal Wedges */}
       {SIX_SEAT_ANGLES.map((angle, seat) => {
-        const a1 = sixPolar(angle - 30, 85);
-        const a2 = sixPolar(angle + 30, 85);
+        const a1 = sixPolar(angle - 30, 118);
+        const a2 = sixPolar(angle + 30, 118);
         return (
           <path
             key={`center-wedge-${seat}`}
-            d={`M 500 500 L ${a1.x} ${a1.y} A 85 85 0 0 1 ${a2.x} ${a2.y} Z`}
+            d={`M 500 500 L ${a1.x} ${a1.y} A 118 118 0 0 1 ${a2.x} ${a2.y} Z`}
             fill={seatColors[seat]}
             fillOpacity="0.88"
             stroke="#0b1a26"

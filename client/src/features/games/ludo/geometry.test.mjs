@@ -63,8 +63,25 @@ test('track tiles stay aligned with their arm through the outer turns', () => {
   const arms = [-90, -30, 30, 90, 150, 210];
   for (let seat = 0; seat < 6; seat++) {
     for (let step = 0; step < 13; step++) {
-      const expected = step < 6 ? arms[seat] : step === 6 ? arms[seat] + 30 : arms[(seat + 1) % 6];
+      const expected = step < 6 ? arms[seat] : arms[(seat + 1) % 6];
       assert.equal(sixTrackTileAngle(seat * 13 + step), `${expected}deg`);
+    }
+  }
+});
+
+test('each arm forms six straight rows of three evenly spaced cells', () => {
+  for (let seat = 0; seat < 6; seat++) {
+    const previousSeat = (seat + 5) % 6;
+    for (let row = 0; row < 6; row++) {
+      const outgoing = sixTrackCenter(previousSeat * 13 + 11 - row);
+      const middle = row === 0
+        ? sixTrackCenter(previousSeat * 13 + 12)
+        : getSixLudoCoords(seat, 78 + row - 1, 0);
+      const incoming = sixTrackCenter(seat * 13 + row);
+      assert.ok(Math.abs(distance(outgoing, middle) - 55) < 0.001);
+      assert.ok(Math.abs(distance(middle, incoming) - 55) < 0.001);
+      assert.ok(Math.abs((outgoing.x + incoming.x) / 2 - middle.x) < 0.001);
+      assert.ok(Math.abs((outgoing.y + incoming.y) / 2 - middle.y) < 0.001);
     }
   }
 });

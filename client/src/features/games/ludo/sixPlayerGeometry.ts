@@ -1,9 +1,13 @@
 // All six-player art and pawns use the same 1000px coordinate system.
 // Seat 0 starts at angle -90° (top) on track cell 0 (0 * 13).
-// Each 13-cell sector crosses one three-cell-wide arm: its outer start,
-// 5 cells towards the center, 1 valley cell at the inner turn, and 6 cells
-// outward along the next arm. Home lanes occupy the center column of each arm.
+// Each 13-cell sector follows six cells inward on one arm, six outward on
+// the next, then the outer center tile that joins the following start cell.
+// Every arm is a regular three-column grid: two track columns and a home lane.
 export const SIX_SEAT_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
+
+const ARM_OUTER_RADIUS = 420;
+const ARM_INNER_RADIUS = 145;
+const CELL_SPACING = 55;
 
 export const SIX_BASE_SLOT_OFFSETS = [
   { x: -29, y: -29 }, { x: 29, y: -29 },
@@ -41,26 +45,13 @@ export function sixTrackCenter(position: number) {
   const step = normalized % 13;
   const arm = SIX_SEAT_ANGLES[sector] ?? SIX_SEAT_ANGLES[0];
   const nextArm = SIX_SEAT_ANGLES[(sector + 1) % 6] ?? SIX_SEAT_ANGLES[0];
-  const midAngle = arm + 30;
-
-  if (step === 0) {
-    // Start cell on outer tip of arm
-    return sixPolarTangent(arm, 415, 22);
-  } else if (step <= 5) {
-    // Inward lane: r from 375 down to 155
-    const r = 375 - (step - 1) * 55;
-    return sixPolarTangent(arm, r, 44);
-  } else if (step === 6) {
-    // Valley cell at inner corner
-    return sixPolar(midAngle, 115);
-  } else if (step <= 11) {
-    // Outward lane on nextArm: r from 155 up to 375
-    const r = 155 + (step - 7) * 55;
-    return sixPolarTangent(nextArm, r, -44);
-  } else {
-    // Outer corner transition cell to next arm start
-    return sixPolarTangent(nextArm, 415, -22);
+  if (step < 6) {
+    return sixPolarTangent(arm, ARM_OUTER_RADIUS - step * CELL_SPACING, CELL_SPACING);
   }
+  if (step < 12) {
+    return sixPolarTangent(nextArm, ARM_INNER_RADIUS + (step - 6) * CELL_SPACING, -CELL_SPACING);
+  }
+  return sixPolar(nextArm, ARM_OUTER_RADIUS);
 }
 
 /** Keep each square aligned to its arm instead of twisting it toward a turn. */
@@ -69,9 +60,7 @@ export function sixTrackTileAngle(position: number) {
   const sector = Math.floor(normalized / 13);
   const step = normalized % 13;
   const arm = SIX_SEAT_ANGLES[sector];
-  if (step < 6) return `${arm}deg`;
-  if (step === 6) return `${arm + 30}deg`;
-  return `${SIX_SEAT_ANGLES[(sector + 1) % 6]}deg`;
+  return `${step < 6 ? arm : SIX_SEAT_ANGLES[(sector + 1) % 6]}deg`;
 }
 
 export function sixLaneTileAngle(seat: number) {
@@ -91,7 +80,7 @@ export function getSixLudoCoords(seat: number, position: number, token: number) 
   }
   if (position >= 78 && position < 83) {
     const step = position - 78;
-    return sixPolar(arm, 375 - step * 55);
+    return sixPolar(arm, ARM_OUTER_RADIUS - (step + 1) * CELL_SPACING);
   }
   return sixPolar(arm, 75);
 }
