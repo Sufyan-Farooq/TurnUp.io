@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev:server": "npm run dev --prefix server",
-    "dev:client": "npm run dev --prefix client"
+    "dev:client": "npm run dev --prefix client",
+    "demo:studio": "npm run studio --prefix remotion-demo",
+    "demo:render": "npm run render --prefix remotion-demo"
   }
 }

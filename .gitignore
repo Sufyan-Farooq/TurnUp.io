@@ -5,6 +5,8 @@ node_modules/
 # Build outputs
 dist/
 **/dist/
+remotion-demo/out/qa-*.png
+remotion-demo/out/site-captures/
 dist-ssr/
 **/dist-ssr/
 build/

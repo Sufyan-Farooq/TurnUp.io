@@ -2,6 +2,10 @@
 
 **Real-Time Multiplayer Board Game Platform** — A full-stack web application enabling players to compete in classic board games (Snakes & Ladders, Ludo, Uno, Monopoly) via a persistent WebSocket connection. Built with a React/TypeScript frontend and a Node.js/Express backend, backed by PostgreSQL managed through Prisma ORM.
 
+[![Watch the TurnUp.io launch video](./remotion-demo/out/preview.png)](./remotion-demo/out/turnup-demo.mp4)
+
+A 27-second launch video featuring real captures of the TurnUp site, room setup, and live Ludo, UNO, Monopoly, and Snakes & Ladders matches. [Watch the launch video](./remotion-demo/out/turnup-demo.mp4) or follow the instructions below to open and render the Remotion composition.
+
 ---
 
 ## Table of Contents
@@ -12,6 +16,7 @@
 - [Repository Structure](#repository-structure)
 - [Setup and Installation](#setup-and-installation)
 - [Running the Project](#running-the-project)
+- [Remotion product demo](#remotion-product-demo)
 - [Container deployment](#container-deployment)
 - [Kubernetes deployment](#kubernetes-deployment)
 - [Database Schema](#database-schema)
@@ -108,6 +113,10 @@ TurnUp.io/
 │   │   └── schema.prisma       # Database schema and model definitions
 │   └── package.json            # Backend dependencies and scripts
 │
+├── remotion-demo/              # Remotion launch video and real site captures
+│   ├── public/footage/         # Captures of the app and live matches
+│   ├── src/                    # Composition and motion design
+│   └── out/                    # Rendered MP4 and README poster image
 ├── assets/                     # Brand resources and design assets
 ├── research/                   # Technical research and design documents
 ├── package.json                # Root-level scripts to orchestrate client + server
@@ -133,7 +142,7 @@ cd TurnUp.io
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file inside the `server/` directory with the following keys:
+For local development, create `server/.env` with a PostgreSQL connection string and a JWT signing secret:
 
 ```env
 # PostgreSQL connection string
@@ -142,22 +151,23 @@ DATABASE_URL="postgresql://username:password@localhost:5432/turnup_db?schema=pub
 # Secret key for signing JSON Web Tokens
 JWT_SECRET="your_jwt_secret_key"
 
-# Port the server listens on
-PORT=5000
+# Optional; defaults to 3000
+PORT=3000
+
+# Optional; defaults to the local Vite origin
+CORS_ORIGIN="http://localhost:5173"
 ```
 
 ### 3. Install Dependencies
 
-Install dependencies for both the backend and frontend separately:
+Install dependencies for the backend and frontend:
 
 ```bash
-# Backend dependencies
-cd server
-npm install
+# Backend dependencies (from the repository root)
+npm install --prefix server
 
 # Frontend dependencies
-cd ../client
-npm install
+npm install --prefix client
 ```
 
 ### 4. Initialize the Database
@@ -173,7 +183,7 @@ npx prisma db push
 
 ## Running the Project
 
-Run both applications from the root directory using the convenience scripts:
+Run each application from the repository root in its own terminal. The backend is available at `http://localhost:3000`; the Vite client is at `http://localhost:5173`.
 
 ```bash
 # Start the backend server (hot-reload via Nodemon)
@@ -186,6 +196,21 @@ npm run dev:client
 ```
 
 Both commands can be run simultaneously in separate terminal windows.
+
+## Remotion product demo
+
+The Remotion project lives in [`remotion-demo/`](./remotion-demo/). It uses full-resolution captures of the running product in `remotion-demo/public/footage/`, with matching in-game sound cues. The rendered MP4 and its poster frame are included in [`remotion-demo/out/`](./remotion-demo/out/).
+
+```bash
+# Open the composition in Remotion Studio
+npm install --prefix remotion-demo
+npm run demo:studio
+
+# Render the 27-second, 1920 × 1080, 30 fps launch video
+npm run demo:render
+```
+
+The film moves from the live landing page through the game picker and room setup, then into actual multiplayer game screens before closing on the TurnUp brand. The match footage was captured from local demo rooms filled with the product's built-in bots.
 
 ## Container deployment
 
@@ -254,4 +279,5 @@ The database is defined using Prisma and targets PostgreSQL. The four core model
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string in Prisma format |
 | `JWT_SECRET` | Yes | Secret used to sign and verify JWT tokens |
-| `PORT` | No | HTTP port for the Express server (default: `5000`) |
+| `PORT` | No | HTTP port for the Express server (default: `3000`) |
+| `CORS_ORIGIN` | No | Comma-separated browser origins allowed by the server (defaults to `http://localhost:5173`) |
