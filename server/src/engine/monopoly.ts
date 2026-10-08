@@ -11,7 +11,7 @@ interface MonopolySpace {
   mortgageValue?: number;
 }
 
-const MONOPOLY_BOARD: MonopolySpace[] = [
+export const MONOPOLY_BOARD: MonopolySpace[] = [
   { name: 'START', type: 'go' }, // 0
   { name: 'Salvador', type: 'property', group: 'brazil', price: 60, rent: [2, 10, 30, 90, 160, 250], houseCost: 50, mortgageValue: 30 }, // 1
   { name: 'Treasure', type: 'community_chest' }, // 2
@@ -338,6 +338,23 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
   }
 
   public processAction(currentState: MonopolyState, action: GameAction): ActionResult<MonopolyState> {
+    const result = this.applyAction(currentState, action);
+    const next = result.newState;
+    // Resolve landing decisions first (purchase, auction, debt), then offer the
+    // extra roll directly. Jail doubles and the third consecutive double do not qualify.
+    if (result.isValid && next && next.subState === 'WAITING_FOR_TURN_END' &&
+        next.gameSpecificState.doubleRollCount > 0 &&
+        next.gameSpecificState.lastRoll[0] > 0 &&
+        next.gameSpecificState.lastRoll[0] === next.gameSpecificState.lastRoll[1] &&
+        !next.gameSpecificState.inJail[next.activePlayerId] &&
+        next.gameSpecificState.cash[next.activePlayerId] >= 0) {
+      result.newState = { ...next, subState: 'WAITING_FOR_ROLL' };
+      result.events.push({ type: 'EXTRA_ROLL_DUE_TO_DOUBLES', playerId: next.activePlayerId, payload: {} });
+    }
+    return result;
+  }
+
+  private applyAction(currentState: MonopolyState, action: GameAction): ActionResult<MonopolyState> {
     const { type, playerId, payload } = action;
 
     const isOutOfTurnAction = 
@@ -1190,7 +1207,8 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
       } while (updatedBankrupt[currentState.turnOrder[nextTurnIndex]]);
 
       const nextPlayerId = currentState.turnOrder[nextTurnIndex];
-      const nextSubState = currentState.gameSpecificState.inJail[nextPlayerId] ? 'WAITING_FOR_JAIL_DECISION' : 'WAITING_FOR_ROLL';
+      const nextDebt = Math.max(0, -updatedCash[nextPlayerId]);
+      const nextSubState = nextDebt > 0 ? 'DEBT_OR_BANKRUPT' : currentState.gameSpecificState.inJail[nextPlayerId] ? 'WAITING_FOR_JAIL_DECISION' : 'WAITING_FOR_ROLL';
 
       const nextState: MonopolyState = {
         ...currentState,
@@ -1204,7 +1222,7 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
           bankrupt: updatedBankrupt,
           doubleRollCount: 0,
           debtOwedTo: null,
-          debtAmount: 0,
+          debtAmount: nextDebt,
           activeTrade: remainingActiveTrade
         }
       };
@@ -1423,7 +1441,10 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
           events.push({ type: 'JAIL_RELEASED', playerId: nextPlayerId, payload: { reason: 'Pardon card used' } });
         }
 
-        const nextSubState = nextInJail ? 'WAITING_FOR_JAIL_DECISION' : 'WAITING_FOR_ROLL';
+        // A collect-from-each-player card can debit someone outside their turn.
+        // Those transfers already happened; settle the negative balance before rolling.
+        const nextDebt = Math.max(0, -currentState.gameSpecificState.cash[nextPlayerId]);
+        const nextSubState = nextDebt > 0 ? 'DEBT_OR_BANKRUPT' : nextInJail ? 'WAITING_FOR_JAIL_DECISION' : 'WAITING_FOR_ROLL';
 
         const updatedInJail = { ...currentState.gameSpecificState.inJail, [nextPlayerId]: nextInJail };
         const updatedJailTurns = { ...currentState.gameSpecificState.jailTurns, [nextPlayerId]: nextJailTurns };
@@ -1439,6 +1460,8 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
             inJail: updatedInJail,
             jailTurns: updatedJailTurns,
             jailCards: updatedJailCards,
+            debtOwedTo: null,
+            debtAmount: nextDebt,
             doubleRollCount: 0,
             lastRoll: [0, 0]
           }

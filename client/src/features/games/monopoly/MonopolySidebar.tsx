@@ -4,8 +4,11 @@ import { MONOPOLY_BOARD, colorGroupMap, AVATAR_COLORS } from './boardData';
 import type { MonopolyGameState, MonopolyRoom } from './types';
 import type { VoteKickState } from '../../room/types';
 import './monopoly.css';
+import { getPlayerInitial } from '../../../theme/playerIdentity';
+import { getAppearanceColor } from '../../../theme/playerColors';
 
 export interface MonopolySidebarProps {
+  view: 'players' | 'properties';
   gameState: MonopolyGameState;
   room: MonopolyRoom;
   currentUserId: string;
@@ -21,7 +24,7 @@ export interface MonopolySidebarProps {
 }
 
 export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
-  gameState, room, currentUserId, onMortgage, onUnmortgage, onBuildHouse,
+  view, gameState, room, currentUserId, onMortgage, onUnmortgage, onBuildHouse,
   onSellHouse, onOpenTradeWith, onHoverPlayer, voteKickState, voteKickCountdown, onOpenVoteKickPanel
 }) => {
   const cash = gameState.gameSpecificState.cash || {};
@@ -36,6 +39,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
 
   return (
     <aside className="monopoly-sidebar" aria-label="Monopoly players and property portfolio">
+      {view === 'players' && <>
       <header className="monopoly-sidebar-section">
         <h3 className="monopoly-section-title">Players &amp; balances</h3>
       </header>
@@ -44,14 +48,14 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
           const playerCash = cash[player.id] !== undefined ? cash[player.id] : 1500;
           const playerInJail = inJail[player.id];
           const playerBankrupt = bankrupt[player.id];
-          const avatarBg = player.color || AVATAR_COLORS[index % AVATAR_COLORS.length];
+          const avatarBg = getAppearanceColor(player.color || AVATAR_COLORS[index % AVATAR_COLORS.length], index);
           const isActive = player.id === gameState.activePlayerId;
           return (
             <article key={player.id} className={`monopoly-player-card${isActive ? ' is-active' : ''}`}
               onMouseEnter={() => onHoverPlayer?.(player.id)} onMouseLeave={() => onHoverPlayer?.(null)}
               aria-current={isActive ? 'true' : undefined}>
               <div className="monopoly-player-identity">
-                <div className="monopoly-player-avatar" style={{ background: avatarBg }} aria-hidden="true">{player.name.charAt(0)}</div>
+                <div className="monopoly-player-avatar" style={{ background: avatarBg }} aria-hidden="true">{getPlayerInitial(player.name, player.isBot || player.id.startsWith('bot-'))}</div>
                 <div className="monopoly-player-copy">
                   <span className={`monopoly-player-name${playerBankrupt ? ' is-bankrupt' : ''}`}>
                     {player.name}{player.id === currentUserId ? ' · You' : ''}
@@ -87,7 +91,9 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
           );
         })}
       </div>
+      </>}
 
+      {view === 'properties' && <>
       <header className="monopoly-sidebar-section">
         <h3 className="monopoly-section-title">Properties · {myOwnedProperties.length}</h3>
       </header>
@@ -136,6 +142,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
           );
         })}
       </div>
+      </>}
     </aside>
   );
 };

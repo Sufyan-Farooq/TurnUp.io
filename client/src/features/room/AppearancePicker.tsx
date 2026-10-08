@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, ArrowRight, X, Lock } from 'lucide-react';
 import type { Player } from './types';
+import { getAppearanceColor } from '../../theme/playerColors';
 
 export interface AppearancePickerProps {
   /** The current player's own id, used to exclude their own reserved color from "taken" checks. */
@@ -38,7 +39,7 @@ export const AppearancePicker: React.FC<AppearancePickerProps> = ({
 }) => {
   const takenColors = (players || [])
     .filter((p) => p.id !== currentUserId && p.color)
-    .map((p) => p.color?.toLowerCase());
+    .map((p) => gameType === 'LUDO' ? p.color?.toLowerCase() : getAppearanceColor(p.color).toLowerCase());
 
   const isLudo = gameType === 'LUDO';
   const columns = isLudo ? (maxPlayers === 6 ? 3 : 4) : 4;

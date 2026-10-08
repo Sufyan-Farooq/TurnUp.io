@@ -21,6 +21,8 @@ export const MonopolyActionBar: React.FC<MonopolyActionBarProps> = ({
   const cashValue = gameState.gameSpecificState.cash[currentUserId] || 0;
   const subState = gameState.subState;
   const lastRoll = gameState.gameSpecificState.lastRoll;
+  const isExtraRoll = subState === 'WAITING_FOR_ROLL' && gameState.gameSpecificState.doubleRollCount > 0 &&
+    !gameState.gameSpecificState.inJail[gameState.activePlayerId];
   const { isRolling, diceValues, triggerRoll } = useRollAnimation(onRollDice, gameState.historyLength ?? 0, lastRoll);
 
   return (
@@ -40,7 +42,7 @@ export const MonopolyActionBar: React.FC<MonopolyActionBarProps> = ({
         )}
         {isMyTurn ? <>
           {(subState === 'WAITING_FOR_ROLL' || subState === 'WAITING_FOR_JAIL_DECISION') && (
-            <button type="button" onClick={triggerRoll} disabled={isRolling} className="btn-primary">{isRolling ? 'Rolling…' : 'Roll dice'}</button>
+            <button type="button" onClick={triggerRoll} disabled={isRolling} className="btn-primary">{isRolling ? 'Rolling…' : isExtraRoll ? 'Roll again' : 'Roll dice'}</button>
           )}
           {subState === 'WAITING_FOR_JAIL_DECISION' && cashValue >= 50 && (
             <button type="button" onClick={onPayJailFine} className="btn-secondary"><Unlock size={14} /> Pay $50 fine</button>

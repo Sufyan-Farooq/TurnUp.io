@@ -135,8 +135,6 @@ export const getSpaceSide = (i: number): 'top' | 'right' | 'bottom' | 'left' => 
 };
 
 export const AVATAR_COLORS = [
-  'linear-gradient(135deg, #d90429 0%, #ff4d6d 100%)',
-  'linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)',
-  'linear-gradient(135deg, #38b000 0%, #70e000 100%)',
-  'linear-gradient(135deg, #ffb703 0%, #ffea00 100%)'
+  '#8b464e', '#426c95', '#406e5b', '#826536',
+  '#76619a', '#8f5b41', '#36716c', '#925e78',
 ];

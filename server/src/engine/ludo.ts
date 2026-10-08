@@ -113,9 +113,11 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
       }
 
       // Check if there are any valid moves for this player with this roll
-      const hasMoves = this.hasValidMoves(currentState, playerId, roll);
+      const validTokenIndices = currentState.gameSpecificState.tokens[playerId]
+        .map((_, index) => index)
+        .filter(index => this.isValidMove(currentState, playerId, index, roll));
 
-      if (!hasMoves) {
+      if (validTokenIndices.length === 0) {
         events.push({
           type: 'NO_VALID_MOVES',
           playerId,
@@ -154,6 +156,17 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
         }
       };
 
+      // Resolve a forced move through the same rules as a manually chosen move,
+      // including captures, bonus turns, home arrivals and finishing rankings.
+      if (validTokenIndices.length === 1) {
+        const moveResult = this.processAction(nextState, {
+          ...action,
+          type: 'MOVE_TOKEN',
+          payload: { tokenIndex: validTokenIndices[0] }
+        });
+        return { ...moveResult, events: [...events, ...moveResult.events] };
+      }
+
       return { isValid: true, newState: nextState, events };
     }
 
@@ -162,8 +175,8 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
         return { isValid: false, error: 'Cannot move a token right now.', events: [] };
       }
 
-      const tokenIndex = payload.tokenIndex;
-      if (typeof tokenIndex !== 'number' || tokenIndex < 0 || tokenIndex > 3) {
+      const tokenIndex = payload?.tokenIndex;
+      if (!Number.isInteger(tokenIndex) || tokenIndex < 0 || tokenIndex > 3) {
         return { isValid: false, error: 'Invalid token index.', events: [] };
       }
 
@@ -287,7 +300,7 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
           nextTurnOrder = currentState.turnOrder.filter(id => id !== playerId);
           
           // Calculate who goes next in the old turnOrder list
-          const rawNextIndex = extraTurn ? currentState.turnIndex : (currentState.turnIndex + 1) % currentState.turnOrder.length;
+          const rawNextIndex = (currentState.turnIndex + 1) % currentState.turnOrder.length;
           const rawNextPlayerId = currentState.turnOrder[rawNextIndex];
           
           // Locate that player index in the new list
@@ -358,16 +371,6 @@ export class LudoRuleset implements IGameRuleset<LudoState> {
       return rankings[0] || null;
     }
     return null;
-  }
-
-  private hasValidMoves(state: LudoState, playerId: string, roll: number): boolean {
-    const tokens = state.gameSpecificState.tokens[playerId];
-    for (let i = 0; i < 4; i++) {
-      if (this.isValidMove(state, playerId, i, roll)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private getPlayerBaseIndex(state: LudoState, playerId: string): number {

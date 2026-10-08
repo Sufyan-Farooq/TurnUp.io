@@ -2088,6 +2088,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .room-rail__primary { flex: 0 1 auto; max-height: 46%; min-height: 0; overflow-y: auto; }
 .room-rail__secondary { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 210px; overflow: hidden; border-top: 1px solid rgba(242, 223, 181, .14); }
+.game-sidebar--play .room-rail__primary { flex: 1 1 auto; max-height: none; }
+.game-sidebar--play .room-rail__secondary { position: relative; flex: 0 1 36%; min-height: 180px; }
+.game-sidebar--play .room-rail__secondary.is-collapsed { flex: 0 0 auto; min-height: 0; }
+.game-sidebar--play .room-rail__tabs { padding-right: 52px; }
+.room-rail__conversation-toggle {
+  position: absolute; top: 7px; right: 8px; display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.room-rail__conversation-toggle:hover { background: rgba(244, 240, 231, .08); color: var(--cloud); }
+.room-rail__tab-panel[hidden] { display: none; }
 .game-sidebar--lobby .room-rail__primary { flex: 0 1 64%; max-height: 64%; overflow: hidden; }
 .game-sidebar--lobby .room-rail__secondary { flex: 1 1 36%; min-height: 180px; }
 .room-rail__tabs { display: flex; flex: 0 0 auto; padding: 7px 10px 0; gap: 7px; border-bottom: 1px solid rgba(242, 223, 181, .12); }
@@ -2249,7 +2260,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .landing-screen .brand-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(240,188,100,.13); }
 .landing-screen .brand-divider-line { background: rgba(235,224,202,.18); }
 .landing-screen .auth-text-action, .landing-screen .auth-back-button { text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.game-shell[data-game="MONOPOLY"] .room-rail__primary { max-height: 60%; }
+/* Monopoly's growing lists share the full rail instead of competing for height. */
+.game-sidebar--monopoly .room-rail__primary,
+.game-sidebar--monopoly .room-rail__secondary {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+  border-top: 0;
+}
+.game-sidebar--monopoly .room-rail__primary[hidden],
+.game-sidebar--monopoly .room-rail__secondary[hidden] { display: none; }
+.game-sidebar--monopoly .monopoly-player-list,
+.game-sidebar--monopoly .monopoly-property-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.game-sidebar--monopoly .monopoly-player-card,
+.game-sidebar--monopoly .monopoly-property-card { flex-shrink: 0; }
+.monopoly-rail-tabs { gap: 0; padding-inline: 8px; }
+.monopoly-rail-tabs button { min-height: 48px; gap: 4px; padding-inline: 4px; }
+.game-sidebar--monopoly .left-sidebar--rail {
+  display: flex;
+  position: static;
+  box-shadow: none;
+}
 .victory-overlay {
   position: absolute; inset: 56px clamp(316px, 23vw, 370px) 0 0; z-index: 60;
   padding: 18px; overflow-y: auto; background: rgba(7, 19, 28, .86);

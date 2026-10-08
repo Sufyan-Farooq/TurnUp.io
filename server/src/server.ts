@@ -9,7 +9,8 @@ import { SnakesLaddersRuleset } from './engine/snakesLadders';
 import { LudoRuleset } from './engine/ludo';
 import { getLudoSeatColors } from './engine/ludoPalette';
 import { UnoRuleset } from './engine/uno';
-import { MonopolyRuleset, getMonopolySpacePrice } from './engine/monopoly';
+import { MonopolyRuleset, type MonopolyState } from './engine/monopoly';
+import { chooseMonopolyBotAction, getMonopolyBotActor, getMonopolyBotDelay } from './engine/monopolyBot';
 import { GameEngineManager } from './engine/interfaces';
 import { prisma } from './db';
 import { hashPassword, verifyPassword, generateToken, verifyToken } from './services/auth';
@@ -1005,16 +1006,23 @@ io.on('connection', (socket: Socket) => {
 
       if (room.lobbySettings?.allowBots && currentPlayersCount < maxPlayersLimit) {
         const botsNeeded = maxPlayersLimit - currentPlayersCount;
-        const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta'];
+        const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta', 'Bot Theta', 'Bot Iota'];
         let colors = [
-          '#adff2f', '#ffb703', '#fb8500', '#e63946',
-          '#4a90e2', '#8ecae6', '#2a9d8f', '#38b000',
-          '#b07d62', '#ffafcc', '#ff007f', '#7b2cbf'
+          '#566f42', '#826536', '#8f5b41', '#8b464e',
+          '#426c95', '#536880', '#36716c', '#406e5b',
+          '#846354', '#925e78', '#7a5971', '#76619a'
         ];
         if (room.gameType === 'LUDO') {
           colors = [...getLudoSeatColors(maxPlayersLimit)];
         }
-        const takenColors = room.players.map(p => p.color).filter(Boolean);
+        const legacyColors = [
+          '#adff2f', '#ffb703', '#fb8500', '#e63946', '#4a90e2', '#8ecae6',
+          '#2a9d8f', '#38b000', '#b07d62', '#ffafcc', '#ff007f', '#7b2cbf'
+        ];
+        const takenColors = room.players.map(p => {
+          const legacyIndex = legacyColors.indexOf(p.color?.toLowerCase() || '');
+          return room.gameType !== 'LUDO' && legacyIndex >= 0 ? colors[legacyIndex] : p.color;
+        }).filter(Boolean);
         const availableColors = colors.filter(c => !takenColors.some(taken => taken?.toLowerCase() === c.toLowerCase()));
 
         for (let i = 0; i < botsNeeded; i++) {
@@ -1593,7 +1601,10 @@ function handlePermanentLeave(roomId: string, playerId: string) {
   }
 }
 
+const botTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 function runBotTurnIfActive(roomId: string) {
+  if (botTurnTimers.has(roomId)) return;
   const room = rooms[roomId];
   if (!room || room.status !== 'PLAYING' || !room.engineManager) return;
 
@@ -1603,7 +1614,9 @@ function runBotTurnIfActive(roomId: string) {
   const activePlayer = state.players.find(p => p.id === state.activePlayerId);
   let botPlayerId = '';
 
-  if (activePlayer && activePlayer.isBot) {
+  if (state.gameType === 'MONOPOLY') {
+    botPlayerId = getMonopolyBotActor(state);
+  } else if (activePlayer && activePlayer.isBot) {
     botPlayerId = activePlayer.id;
   } else if (state.subState === 'AUCTION') {
     const auctionBidders = state.gameSpecificState.auctionBidders || [];
@@ -1617,12 +1630,15 @@ function runBotTurnIfActive(roomId: string) {
 
   if (!botPlayerId) return;
 
-  setTimeout(() => {
+  botTurnTimers.set(roomId, setTimeout(() => {
+    botTurnTimers.delete(roomId);
     const freshRoom = rooms[roomId];
     if (!freshRoom || freshRoom.status !== 'PLAYING' || !freshRoom.engineManager) return;
     const freshState = freshRoom.engineManager.getCurrentState();
+    if (freshState.status === 'GAME_OVER') return;
 
     const expectedBotId = (() => {
+      if (freshState.gameType === 'MONOPOLY') return getMonopolyBotActor(freshState);
       const active = freshState.players.find(p => p.id === freshState.activePlayerId);
       if (active?.isBot) return active.id;
       if (freshState.subState === 'AUCTION') {
@@ -1760,52 +1776,8 @@ function runBotTurnIfActive(roomId: string) {
         }
       }
     } else if (gameType === 'MONOPOLY') {
-      if (subState === 'WAITING_FOR_ROLL') {
-        actionType = 'ROLL_DICE';
-      } else if (subState === 'WAITING_FOR_BUY_OR_PASS') {
-        const cash = freshState.gameSpecificState.cash[botPlayerId] || 0;
-        const position = freshState.gameSpecificState.positions[botPlayerId];
-        const propPrice = getMonopolySpacePrice(position) ?? Number.POSITIVE_INFINITY;
-        if (cash >= propPrice && Math.random() < 0.7) {
-          actionType = 'BUY_PROPERTY';
-        } else {
-          actionType = 'END_TURN';
-        }
-      } else if (subState === 'WAITING_FOR_JAIL_DECISION') {
-        const cash = freshState.gameSpecificState.cash[botPlayerId] || 0;
-        if (cash > 150 && Math.random() < 0.5) {
-          actionType = 'PAY_JAIL_FINE';
-        } else {
-          actionType = 'ROLL_DICE';
-        }
-      } else if (subState === 'WAITING_FOR_TURN_END') {
-        actionType = 'END_TURN';
-      } else if (subState === 'DEBT_OR_BANKRUPT') {
-        const properties = freshState.gameSpecificState.properties || {};
-        let mortgagedAny = false;
-        const mortgageEnabled = freshState.gameSpecificState.config?.mortgage !== false;
-        for (const [idxStr, prop] of Object.entries(properties) as any) {
-          const idx = parseInt(idxStr, 10);
-          if (mortgageEnabled && prop.ownerId === botPlayerId && !prop.mortgaged && prop.houses === 0) {
-            actionType = 'MORTGAGE';
-            actionPayload = { spaceIndex: idx };
-            mortgagedAny = true;
-            break;
-          }
-        }
-        if (!mortgagedAny) {
-          actionType = 'DECLARE_BANKRUPTCY';
-        }
-      } else if (subState === 'AUCTION') {
-        const currentBid = freshState.gameSpecificState.auctionCurrentBid || 0;
-        const cash = freshState.gameSpecificState.cash[botPlayerId] || 0;
-        if (cash > currentBid + 10 && currentBid < 200 && Math.random() < 0.6) {
-          actionType = 'BID';
-          actionPayload = { amount: currentBid + 10 };
-        } else {
-          actionType = 'FOLD';
-        }
-      }
+      const decision = chooseMonopolyBotAction(freshState as MonopolyState, botPlayerId);
+      if (decision) { actionType = decision.type; actionPayload = decision.payload; }
     }
 
     if (!actionType) return;
@@ -1833,7 +1805,7 @@ function runBotTurnIfActive(roomId: string) {
         runBotTurnIfActive(roomId);
       }
     }
-  }, BOT_ACTION_DELAY_MIN_MS + Math.random() * BOT_ACTION_DELAY_VARIANCE_MS);
+  }, state.gameType === 'MONOPOLY' ? getMonopolyBotDelay(state, Math.random, room.engineManager.getActionLog().at(-1)) : BOT_ACTION_DELAY_MIN_MS + Math.random() * BOT_ACTION_DELAY_VARIANCE_MS));
 }
 
 

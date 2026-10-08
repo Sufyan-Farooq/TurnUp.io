@@ -460,13 +460,16 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({ gameState, room, currentUs
 
             const { x: ox, y: oy } = getTokenStackOffset(indexInCell, count);
 
+            const tokenKey = `${pId}-${tIdx}`;
+            const motion = motionStates[tokenKey] || 'idle';
+            const authoritativePos = tokens[pId]?.[tIdx];
             const isInteractive = isMyTurn
               && (gameState.subState === 'WAITING_FOR_TOKEN_MOVE')
               && (pId === currentUserId)
-              && isTokenMoveValid(trackLength, playerIdx, pos, gameState.gameSpecificState.lastRoll);
+              && motion === 'idle'
+              && pos === authoritativePos
+              && isTokenMoveValid(trackLength, playerIdx, authoritativePos, gameState.gameSpecificState.lastRoll);
             const colorName = getLudoColorName(playerIdx, is6 ? 6 : 4);
-            const tokenKey = `${pId}-${tIdx}`;
-            const motion = motionStates[tokenKey] || 'idle';
             const motionClass = motion === 'hopping' ? 'is-hopping' : motion === 'launching' ? 'is-launching' : motion === 'retreating' ? 'is-retreating' : '';
 
             return (

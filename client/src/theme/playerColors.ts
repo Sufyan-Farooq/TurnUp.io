@@ -12,6 +12,7 @@ export const PLAYER_COLORS = [
 export type PlayerColorId = (typeof PLAYER_COLORS)[number]['id'];
 
 export function getPlayerColorHex(colorId: string | undefined, indexFallback = 0): string {
+  if (colorId && /^#[\da-f]{6}$/i.test(colorId)) return colorId;
   return (
     PLAYER_COLORS.find((c) => c.id === colorId)?.hex ??
     getPlayerColorByIndex(indexFallback).hex
@@ -35,10 +36,22 @@ export function getPlayerColorPalette(maxPlayers?: number): string[] {
  * pin a player to a fixed board quadrant (everything except Ludo).
  */
 export const EXTENDED_APPEARANCE_COLORS = [
+  '#566f42', '#826536', '#8f5b41', '#8b464e',
+  '#426c95', '#536880', '#36716c', '#406e5b',
+  '#846354', '#925e78', '#7a5971', '#76619a',
+] as const;
+
+const legacyAppearanceColors = [
   '#adff2f', '#ffb703', '#fb8500', '#e63946',
   '#4a90e2', '#8ecae6', '#2a9d8f', '#38b000',
   '#b07d62', '#ffafcc', '#ff007f', '#7b2cbf',
-] as const;
+];
+
+/** Also soften saved appearances in matches that started with the old palette. */
+export function getAppearanceColor(color: string | undefined, indexFallback = 0): string {
+  const legacyIndex = legacyAppearanceColors.indexOf(color?.toLowerCase() ?? '');
+  return legacyIndex >= 0 ? EXTENDED_APPEARANCE_COLORS[legacyIndex] : color || EXTENDED_APPEARANCE_COLORS[indexFallback % EXTENDED_APPEARANCE_COLORS.length];
+}
 
 /**
  * Colors a player may pick in the lobby. Ludo is restricted to the seat

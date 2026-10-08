@@ -1,5 +1,6 @@
 import { MonopolyRuleset } from '../engine/monopoly';
 import { IPlayer } from '../engine/interfaces';
+import { DeterministicRNG } from '../engine/rng';
 
 describe('MonopolyRuleset.processAction', () => {
   const players: IPlayer[] = [
@@ -50,6 +51,93 @@ describe('MonopolyRuleset.processAction', () => {
 
     expect(result.isValid).toBe(false);
     expect(result.error).toBeTruthy();
+  });
+
+  describe('Doubles continuation', () => {
+    const ruleset = new MonopolyRuleset();
+    // A deterministic double of 1, 2, or 3 keeps fixtures away from wraparound bonuses.
+    const seed = Array.from({ length: 1000 }, (_, index) => index).find(value => {
+      const rng = new DeterministicRNG(value);
+      const first = rng.rollRange(1, 6);
+      return first <= 3 && first === rng.rollRange(1, 6);
+    })!;
+    const rng = new DeterministicRNG(seed);
+    const total = rng.rollRange(1, 6) + rng.rollRange(1, 6);
+    const setup = (destination: number, config = {}) => {
+      const state = ruleset.initialize(players, { startingCash: 1500, ...config }, 7);
+      state.rngState = String(seed);
+      state.gameSpecificState.positions.p1 = destination - total;
+      return state;
+    };
+    const action = (type: string, playerId = 'p1', payload = {}) => ({ type, playerId, payload, timestamp: 0 });
+
+    it('moves the pawn and permits a second roll immediately after a double', () => {
+      const result = ruleset.processAction(setup(12), action('ROLL_DICE'));
+      expect(result.isValid).toBe(true);
+      expect(result.newState?.gameSpecificState.positions.p1).toBe(12);
+      expect(result.newState?.activePlayerId).toBe('p1');
+      expect(result.newState?.subState).toBe('WAITING_FOR_ROLL');
+      expect(result.events.map(event => event.type)).toContain('PLAYER_MOVED');
+      expect(result.events.map(event => event.type)).toContain('EXTRA_ROLL_DUE_TO_DOUBLES');
+      expect(ruleset.processAction(result.newState!, action('ROLL_DICE')).isValid).toBe(true);
+    });
+
+    it.each(['BUY_PROPERTY', 'END_TURN'])('requires the buy/pass choice before another roll (%s)', choice => {
+      const rolled = ruleset.processAction(setup(7), action('ROLL_DICE')).newState!;
+      expect(rolled.subState).toBe('WAITING_FOR_BUY_OR_PASS');
+      expect(ruleset.processAction(rolled, action('ROLL_DICE')).isValid).toBe(false);
+      const resolved = ruleset.processAction(rolled, action(choice));
+      expect(resolved.isValid).toBe(true);
+      expect(resolved.newState?.subState).toBe('WAITING_FOR_ROLL');
+      expect(resolved.newState?.activePlayerId).toBe('p1');
+    });
+
+    it('waits for the auction to finish before offering the extra roll', () => {
+      const rolled = ruleset.processAction(setup(7, { auction: true }), action('ROLL_DICE')).newState!;
+      let state = ruleset.processAction(rolled, action('END_TURN')).newState!;
+      expect(state.subState).toBe('AUCTION');
+      expect(ruleset.processAction(state, action('ROLL_DICE')).isValid).toBe(false);
+      for (const playerId of ['p1', 'p2']) {
+        const result = ruleset.processAction(state, action('FOLD', playerId));
+        expect(result.isValid).toBe(true);
+        state = result.newState!;
+      }
+      expect(state.subState).toBe('WAITING_FOR_ROLL');
+      expect(state.activePlayerId).toBe('p1');
+    });
+
+    it('waits for debt to be cleared, then permits the extra roll', () => {
+      const state = setup(7);
+      state.gameSpecificState.cash.p1 = 10;
+      state.gameSpecificState.properties[7] = { ownerId: 'p2', houses: 1, mortgaged: false };
+      state.gameSpecificState.properties[6].ownerId = 'p1';
+      const rolled = ruleset.processAction(state, action('ROLL_DICE')).newState!;
+      expect(rolled.subState).toBe('DEBT_OR_BANKRUPT');
+      expect(ruleset.processAction(rolled, action('ROLL_DICE')).isValid).toBe(false);
+      const resolved = ruleset.processAction(rolled, action('MORTGAGE', 'p1', { spaceIndex: 6 }));
+      expect(resolved.isValid).toBe(true);
+      expect(resolved.newState?.subState).toBe('WAITING_FOR_ROLL');
+    });
+
+    it.each([false, true])('does not grant an extra roll when sent to jail (third double: %s)', third => {
+      const state = setup(third ? 12 : 36);
+      state.gameSpecificState.doubleRollCount = third ? 2 : 0;
+      const rolled = ruleset.processAction(state, action('ROLL_DICE')).newState!;
+      expect(rolled.gameSpecificState.inJail.p1).toBe(true);
+      expect(rolled.subState).toBe('WAITING_FOR_TURN_END');
+      expect(ruleset.processAction(rolled, action('END_TURN')).newState?.activePlayerId).toBe('p2');
+    });
+
+    it('does not grant an extra roll for the double that releases a jailed player', () => {
+      const state = setup(12 + total);
+      state.subState = 'WAITING_FOR_JAIL_DECISION';
+      state.gameSpecificState.inJail.p1 = true;
+      if (state.gameSpecificState.properties[12 + total]) state.gameSpecificState.properties[12 + total].ownerId = 'p1';
+      const rolled = ruleset.processAction(state, action('ROLL_DICE')).newState!;
+      expect(rolled.gameSpecificState.inJail.p1).toBe(false);
+      expect(rolled.subState).toBe('WAITING_FOR_TURN_END');
+      expect(ruleset.processAction(rolled, action('END_TURN')).newState?.activePlayerId).toBe('p2');
+    });
   });
 
   describe('Monopoly Trading & Negotiation System', () => {

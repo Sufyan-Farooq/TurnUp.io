@@ -144,6 +144,25 @@ describe('Full room -> game flow (socket.io integration)', () => {
     expect(restored.gameState).toBeDefined();
   }, 15000);
 
+  it('does not restore a Monopoly spectator after they explicitly exit', async () => {
+    const hostToken = generateToken({ id: 'exit-mono-host', username: 'Host', role: 'USER' });
+    const guestToken = generateToken({ id: 'exit-mono-guest', username: 'Guest', role: 'USER' });
+    const watcherToken = generateToken({ id: 'exit-mono-watcher', username: 'Watcher', role: 'USER' });
+    hostClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    guestClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    spectatorClient = ioClient(baseUrl, { transports: ['websocket'], forceNew: true });
+    await Promise.all([waitForEvent(hostClient, 'connect'), waitForEvent(guestClient, 'connect'), waitForEvent(spectatorClient, 'connect')]);
+    const created: any = await emitWithAck(hostClient, 'create_room', { name: 'Monopoly Exit', token: hostToken, gameType: 'MONOPOLY' });
+    await emitWithAck(guestClient, 'join_room', { roomId: created.roomId, token: guestToken });
+    await emitWithAck(guestClient, 'toggle_ready');
+    expect((await emitWithAck(hostClient, 'start_game', {})).success).toBe(true);
+    expect((await emitWithAck(spectatorClient, 'join_room', { roomId: created.roomId, token: watcherToken })).isSpectator).toBe(true);
+    expect((await emitWithAck(spectatorClient, 'leave_room')).success).toBe(true);
+    expect((await emitWithAck(spectatorClient, 'auth', { roomId: created.roomId, token: watcherToken })).success).toBe(false);
+    // Exiting is reversible only through a new, explicit join.
+    expect((await emitWithAck(spectatorClient, 'join_room', { roomId: created.roomId, token: watcherToken })).isSpectator).toBe(true);
+  });
+
   it('explains why vote kick is unavailable in a two-player room', async () => {
     const hostToken = generateToken({ id: 'vote-host', username: 'Host', role: 'USER' });
     const guestToken = generateToken({ id: 'vote-guest', username: 'Guest', role: 'USER' });

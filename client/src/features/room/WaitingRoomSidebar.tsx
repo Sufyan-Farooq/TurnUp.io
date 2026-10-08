@@ -3,7 +3,7 @@ import { Ban, Check, CircleAlert, Cloud, CloudOff, Crown, Handshake, Hourglass, 
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { getPlayerColorHex } from '../../theme/playerColors';
+import { getAppearanceColor, getPlayerColorHex } from '../../theme/playerColors';
 import type { LobbySettings, LobbySettingsPatch, Room } from '../../types/game';
 import type { SettingsSyncState } from '../../hooks/useRoom';
 import type { VoteKickState } from './types';
@@ -127,7 +127,7 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
 
             return (
               <div key={player.id} className={`lobby-player-row ${isTarget ? 'is-votekick-target' : ''}`}>
-                <Avatar name={player.name} color={getPlayerColorHex(player.color, index)} size={32} />
+                <Avatar name={player.name} isBot={player.id.startsWith('bot-')} color={room?.gameType === 'LUDO' ? getPlayerColorHex(player.color, index) : getAppearanceColor(player.color, index)} size={32} />
                 <div className="lobby-player-copy">
                   <span className="lobby-player-name">{player.name}{player.id === currentPlayerId ? ' (you)' : ''}</span>
                   <span className={`lobby-player-status ${player.connected && player.ready ? 'is-ready' : ''}`}>{!player.connected ? 'Reconnecting' : player.ready ? 'Ready' : 'Not ready'}</span>

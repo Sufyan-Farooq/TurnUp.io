@@ -458,6 +458,7 @@
   0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 65, 77, 0.7); }
   50%  { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(255, 65, 77, 0); }
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 65, 77, 0); }
+}
 .uno-hand-penalty-alert {
   width: min(100%, 540px);
   margin: 0 auto 10px;
@@ -561,6 +562,10 @@
 .uno-action-kicker { color: rgba(255,255,255,.74); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .uno-action-context strong { color: #fff; font-size: 12px; font-weight: 650; }
 .uno-action-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.game-action-dock--rail .uno-action-bar { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; box-shadow: none; }
+.game-action-dock--rail .uno-action-context { min-width: 0; }
+.game-action-dock--rail .uno-action-context strong { font-size: 14px; line-height: 1.5; }
+.game-action-dock--rail .uno-action-buttons { display: grid; grid-template-columns: 1fr; }
 .uno-action-button { min-height: 44px; padding: 9px 15px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 9px; color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
 .uno-action-button svg { width: 14px; height: 14px; }
 .uno-action-button:hover { transform: translateY(-2px); }

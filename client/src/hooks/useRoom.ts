@@ -86,6 +86,7 @@ export function useRoom(
   const [settingsSyncMessage, setSettingsSyncMessage] = useState<string | null>(null);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmedSettingsRef = useRef<LobbySettingsPatch>({});
+  const sessionRevisionRef = useRef(0);
 
   // Kept in a ref so listeners registered once per `socket` can still read
   // fresh values (player names, current user id) without re-subscribing.
@@ -106,8 +107,10 @@ export function useRoom(
       if (!socketService || !currentUserRef.current) return;
       const { roomId, token: sessionToken } = socketService.getSession();
       if (!roomId || !sessionToken) return;
+      const revision = sessionRevisionRef.current;
 
       s.emit('auth', { token: sessionToken, roomId }, (res: RoomActionResult & { isSpectator?: boolean }) => {
+        if (revision !== sessionRevisionRef.current) return;
         if (!res.success) {
           socketService.clearSession();
           return;
@@ -183,11 +186,13 @@ export function useRoom(
     };
 
     const onGameStarted = (data: { room?: Room }) => {
+      if (!roomRef.current) return;
       if (data.room) setRoom(data.room);
       optionsRef.current.onGameStarted?.();
     };
 
     const onRoomResetToLobby = (data: { room: Room }) => {
+      if (!roomRef.current) return;
       setRoom(data.room);
       optionsRef.current.onReturnedToLobby?.();
     };
@@ -283,10 +288,12 @@ export function useRoom(
     (gameType: string, name?: string) =>
       new Promise<RoomActionResult>(resolve => {
         if (!socket) return resolve({ success: false, message: 'Not connected.' });
+        const revision = ++sessionRevisionRef.current;
         socket.emit(
           'create_room',
           { name: name || `${currentUserRef.current?.username || 'Guest'}'s Arena`, token: token || undefined, gameType },
           (res: RoomActionResult) => {
+            if (revision !== sessionRevisionRef.current) return resolve({ success: false, message: 'Room request cancelled.' });
             if (res.success) {
               setRoom(res.room ?? null);
               setIsSpectator(false);
@@ -306,7 +313,9 @@ export function useRoom(
       new Promise<RoomActionResult>(resolve => {
         if (!socket) return resolve({ success: false, message: 'Not connected.' });
         const authToken = tokenOverride ?? token;
+        const revision = ++sessionRevisionRef.current;
         socket.emit('join_room', { roomId: roomId.toUpperCase(), token: authToken || undefined }, (res: RoomActionResult) => {
+          if (revision !== sessionRevisionRef.current) return resolve({ success: false, message: 'Room request cancelled.' });
           if (res.success) {
             setRoom(res.room ?? null);
             setIsSpectator(!!res.isSpectator);
@@ -428,7 +437,9 @@ export function useRoom(
   );
 
   const leaveRoomSession = useCallback(() => {
+    sessionRevisionRef.current += 1;
     socketService?.clearSession();
+    roomRef.current = null;
     setRoom(null);
     setIsSpectator(false);
     setHasJoinedLobby(false);
@@ -437,13 +448,13 @@ export function useRoom(
   }, [socketService]);
 
   const leaveRoom = useCallback(async () => {
+    // Navigation must not wait for the network acknowledgement to clear membership.
+    leaveRoomSession();
     if (socket?.connected) {
       await new Promise<void>(resolve => {
         socket.timeout(2000).emit('leave_room', () => resolve());
-        setTimeout(resolve, 500); // Safety fallback
       });
     }
-    leaveRoomSession();
   }, [socket, leaveRoomSession]);
 
   return {

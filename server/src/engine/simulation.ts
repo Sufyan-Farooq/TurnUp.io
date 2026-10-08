@@ -94,15 +94,7 @@ function testLudo() {
   };
   result = manager.handleIncomingAction(action);
   assert.strictEqual(result.isValid, true);
-  
-  action = {
-    type: 'MOVE_TOKEN',
-    playerId: 'p1',
-    payload: { tokenIndex: 0 },
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
+  // The only legal token moves automatically as part of the roll.
   state = manager.getCurrentState() as LudoState;
   assert.strictEqual(state.gameSpecificState.tokens['p1'][0], 4);
   assert.strictEqual(state.activePlayerId, 'p2'); // Turn passes to Bob (p2) since roll wasn't 6
@@ -114,6 +106,7 @@ function testLudo() {
   state = manager.getCurrentState() as LudoState;
   state.gameSpecificState.tokens['p1'][0] = 55;
   state.gameSpecificState.tokens['p1'][1] = 10;
+  state.gameSpecificState.tokens['p1'][2] = 20;
   state.activePlayerId = 'p1';
   state.turnIndex = 0;
   state.subState = 'WAITING_FOR_ROLL';
@@ -639,326 +632,108 @@ function testUno() {
  */
 function testMonopoly() {
   logSection('MONOPOLY RULESET SIMULATION');
-
-  const p1: IPlayer = { id: 'p1', name: 'Alice', isBot: false };
-  const p2: IPlayer = { id: 'p2', name: 'Bob', isBot: false };
-  const players = [p1, p2];
-
-  const ruleset = new MonopolyRuleset();
-  const manager = new GameEngineManager(ruleset);
-  let state = manager.initGame(players, { gameId: 'monopoly-test-room' }, 777) as MonopolyState;
-
-  // 1. Move around the board
-  state.gameSpecificState.positions['p1'] = 0;
-  manager.setCurrentState(state);
-
-  mockRoll(3); // rolls 3 + 3 = 6 (Oriental Avenue)
-  let action: GameAction = {
-    type: 'ROLL_DICE',
-    playerId: 'p1',
-    payload: {},
-    timestamp: Date.now()
+  const manager = new GameEngineManager(new MonopolyRuleset());
+  let state = manager.initGame([
+    { id: 'p1', name: 'Alice', isBot: false },
+    { id: 'p2', name: 'Bob', isBot: false }
+  ], { startingCash: 1500, evenBuild: true }, 777) as MonopolyState;
+  const act = (type: string, playerId = 'p1', payload = {}) => {
+    const result = manager.handleIncomingAction({ type, playerId, payload, timestamp: Date.now() });
+    assert.strictEqual(result.isValid, true, result.error);
+    state = manager.getCurrentState() as MonopolyState;
   };
-  let result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.positions['p1'], 6);
+  const turn = (playerId: string, position: number) => {
+    state.activePlayerId = playerId;
+    state.turnIndex = state.turnOrder.indexOf(playerId);
+    state.subState = 'WAITING_FOR_ROLL';
+    state.gameSpecificState.positions[playerId] = position;
+    state.gameSpecificState.doubleRollCount = 0;
+    manager.setCurrentState(state);
+  };
+
+  // The current 48-space board has Tel Aviv at 5 and prison at 12.
+  turn('p1', 1);
+  mockRoll(2);
+  act('ROLL_DICE');
+  assert.strictEqual(state.gameSpecificState.positions.p1, 5);
   assert.strictEqual(state.subState, 'WAITING_FOR_BUY_OR_PASS');
-  console.log('✓ Players move around the board by rolling dice.');
-
-  // 2. Buy unowned property
-  action = {
-    type: 'BUY_PROPERTY',
-    playerId: 'p1',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.properties[6].ownerId, 'p1');
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 1400); // 1500 - 100
-  console.log('✓ Land on unowned property and buy it works.');
-
-  // 3. Land on opponent\'s property and pay rent
-  state.gameSpecificState.positions['p2'] = 0;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.activePlayerId = 'p2';
-  state.turnIndex = 1;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  mockRoll(3); // rolls 3 + 3 = 6
-  action = {
-    type: 'ROLL_DICE',
-    playerId: 'p2',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  // rent base for index 6 is 6.
-  assert.strictEqual(state.gameSpecificState.cash['p2'], 1494); // 1500 - 6
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 1406); // 1400 + 6
-  console.log('✓ Land on opponent property and pay rent works.');
-
-  // Rent calculations (double rent for full color group)
-  // spaces in light blue are 6, 8, 9.
-  state.gameSpecificState.properties[6].ownerId = 'p1';
-  state.gameSpecificState.properties[8].ownerId = 'p1';
-  state.gameSpecificState.properties[9].ownerId = 'p1';
-  state.gameSpecificState.positions['p2'] = 0;
-  state.gameSpecificState.cash['p2'] = 1500;
-  state.gameSpecificState.cash['p1'] = 1000;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.activePlayerId = 'p2';
-  state.turnIndex = 1;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  mockRoll(3); // rolls 6
-  action = {
-    type: 'ROLL_DICE',
-    playerId: 'p2',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.cash['p2'], 1488); // 1500 - 12 (rent is doubled)
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 1012); // 1000 + 12
-  console.log('✓ Rent is doubled if full color group is owned.');
-
-  // Rent calculations (increases with houses built)
-  // Build a house on space 6.
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  action = {
-    type: 'BUILD_HOUSE',
-    playerId: 'p1',
-    payload: { spaceIndex: 6 },
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.properties[6].houses, 1);
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 962); // 1012 - 50 (house cost is 50)
-
-  // land p2 on index 6
-  state.gameSpecificState.positions['p2'] = 0;
-  state.gameSpecificState.cash['p2'] = 1500;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.activePlayerId = 'p2';
-  state.turnIndex = 1;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  mockRoll(3); // rolls 6
-  action = {
-    type: 'ROLL_DICE',
-    playerId: 'p2',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  // rent with 1 house is rent[1] = 30.
-  assert.strictEqual(state.gameSpecificState.cash['p2'], 1470); // 1500 - 30
-  console.log('✓ Rent increases with houses built.');
-
-  // 4. Mortgaging/Unmortgaging properties
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  // sell house first
-  action = {
-    type: 'SELL_HOUSE',
-    playerId: 'p1',
-    payload: { spaceIndex: 6 },
-    timestamp: Date.now()
-  };
-  manager.handleIncomingAction(action);
-
-  // mortgage Oriental Avenue
-  action = {
-    type: 'MORTGAGE',
-    playerId: 'p1',
-    payload: { spaceIndex: 6 },
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.properties[6].mortgaged, true);
-  
-  // land p2 on index 6, verify rent skipped
-  state.gameSpecificState.positions['p2'] = 0;
-  state.gameSpecificState.cash['p2'] = 1500;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.activePlayerId = 'p2';
-  state.turnIndex = 1;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  mockRoll(3);
-  action = {
-    type: 'ROLL_DICE',
-    playerId: 'p2',
-    payload: {},
-    timestamp: Date.now()
-  };
-  manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.cash['p2'], 1500); // no rent paid
-  console.log('✓ Mortgaging property suspends rent charges.');
-
-  // unmortgage property
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  state.gameSpecificState.cash['p1'] = 1000;
-  manager.setCurrentState(state);
-
-  action = {
-    type: 'UNMORTGAGE',
-    playerId: 'p1',
-    payload: { spaceIndex: 6 },
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.properties[6].mortgaged, false);
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 945); // 1000 - 55 (mortgage value 50 * 1.1 = 55)
-  console.log('✓ Unmortgaging property works.');
-
-  // 5. Jail mechanics
-  // 3 double rolls in a row sends to jail
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  state.gameSpecificState.positions['p1'] = 0;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.gameSpecificState.inJail['p1'] = false;
-  manager.setCurrentState(state);
-
-  // Roll 1: doubles
-  mockRoll(2); // 2 and 2
-  action = { type: 'ROLL_DICE', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  manager.handleIncomingAction(action);
-  action = { type: 'END_TURN', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  manager.handleIncomingAction(action);
-  
-  // Roll 2: doubles
-  mockRoll(3); // 3 and 3
-  action = { type: 'ROLL_DICE', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  manager.handleIncomingAction(action);
-  action = { type: 'END_TURN', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  manager.handleIncomingAction(action);
-
-  // Roll 3: doubles -> Sent to jail!
-  mockRoll(4); // 4 and 4
-  action = { type: 'ROLL_DICE', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.inJail['p1'], true);
-  assert.strictEqual(state.gameSpecificState.positions['p1'], 10);
-  console.log('✓ 3 double rolls in a row sends player to jail.');
-
-  // Pay $50 to get out of jail
-  state.subState = 'WAITING_FOR_JAIL_DECISION';
-  state.gameSpecificState.cash['p1'] = 1000;
-  manager.setCurrentState(state);
-
-  action = {
-    type: 'PAY_JAIL_FINE',
-    playerId: 'p1',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  assert.strictEqual(result.isValid, true);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.inJail['p1'], false);
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 950);
+  act('BUY_PROPERTY');
+  assert.strictEqual(state.gameSpecificState.properties[5].ownerId, 'p1');
+  assert.strictEqual(state.gameSpecificState.cash.p1, 1400);
   assert.strictEqual(state.subState, 'WAITING_FOR_ROLL');
-  console.log('✓ Paying $50 to get out of jail works.');
+  console.log('✓ Purchase after doubles offers another roll immediately.');
 
-  // Roll doubles to get out of jail
-  state.gameSpecificState.inJail['p1'] = true;
+  turn('p2', 1);
+  act('ROLL_DICE', 'p2');
+  assert.strictEqual(state.gameSpecificState.cash.p2, 1494);
+  assert.strictEqual(state.gameSpecificState.cash.p1, 1406);
+  state.gameSpecificState.properties[7].ownerId = 'p1';
+  state.gameSpecificState.properties[8].ownerId = 'p1';
+  turn('p2', 1);
+  act('ROLL_DICE', 'p2');
+  assert.strictEqual(state.gameSpecificState.cash.p2, 1482);
+  console.log('✓ Rent doubles for a completed color set.');
+
+  turn('p1', 5);
+  act('BUILD_HOUSE', 'p1', { spaceIndex: 5 });
+  assert.strictEqual(state.gameSpecificState.properties[5].houses, 1);
+  turn('p2', 1);
+  act('ROLL_DICE', 'p2');
+  assert.strictEqual(state.gameSpecificState.cash.p2, 1452);
+  turn('p1', 5);
+  act('SELL_HOUSE', 'p1', { spaceIndex: 5 });
+  act('MORTGAGE', 'p1', { spaceIndex: 5 });
+  const beforeRent = state.gameSpecificState.cash.p2;
+  turn('p2', 1);
+  act('ROLL_DICE', 'p2');
+  assert.strictEqual(state.gameSpecificState.cash.p2, beforeRent);
+  turn('p1', 5);
+  const beforeUnmortgage = state.gameSpecificState.cash.p1;
+  act('UNMORTGAGE', 'p1', { spaceIndex: 5 });
+  assert.strictEqual(state.gameSpecificState.cash.p1, beforeUnmortgage - 55);
+  console.log('✓ Houses, mortgages, and unmortgages change rent and cash correctly.');
+
+  turn('p1', 24);
+  state.gameSpecificState.doubleRollCount = 2;
+  act('ROLL_DICE');
+  assert.strictEqual(state.gameSpecificState.inJail.p1, true);
+  assert.strictEqual(state.gameSpecificState.positions.p1, 12);
   state.subState = 'WAITING_FOR_JAIL_DECISION';
-  manager.setCurrentState(state);
+  act('PAY_JAIL_FINE');
+  assert.strictEqual(state.gameSpecificState.inJail.p1, false);
+  state.gameSpecificState.inJail.p1 = true;
+  state.subState = 'WAITING_FOR_JAIL_DECISION';
+  act('ROLL_DICE');
+  assert.strictEqual(state.gameSpecificState.positions.p1, 16);
+  assert.strictEqual(state.subState, 'WAITING_FOR_BUY_OR_PASS');
+  act('END_TURN');
+  assert.strictEqual(state.subState, 'WAITING_FOR_TURN_END');
+  act('END_TURN');
+  assert.notStrictEqual(state.activePlayerId, 'p1');
+  console.log('✓ Third doubles send to prison; jail escape does not grant an extra roll.');
 
-  mockRoll(3); // 3 and 3
-  action = {
-    type: 'ROLL_DICE',
-    playerId: 'p1',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.inJail['p1'], false);
-  assert.strictEqual(state.gameSpecificState.positions['p1'], 16); // 10 + 6
-  console.log('✓ Rolling doubles to get out of jail works.');
+  // Mocked card index 3 awards a $50 stock profit from Treasure.
+  turn('p1', 14);
+  mockRoll(3);
+  const beforeCard = state.gameSpecificState.cash.p1;
+  act('ROLL_DICE');
+  assert.strictEqual(state.gameSpecificState.positions.p1, 20);
+  assert.strictEqual(state.gameSpecificState.cash.p1, beforeCard + 50);
+  console.log('✓ Treasure card effects resolve on the current board.');
 
-  // 6. Draw Chance card
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  state.gameSpecificState.positions['p1'] = 1;
-  state.gameSpecificState.cash['p1'] = 1000;
-  state.gameSpecificState.doubleRollCount = 0;
-  manager.setCurrentState(state);
-
-  mockRoll(3); // roll sum = 6, lands on index 7 (Chance), cardType = 3 (speeding fine pay $15)
-  action = { type: 'ROLL_DICE', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.positions['p1'], 7);
-  assert.strictEqual(state.gameSpecificState.cash['p1'], 985); // 1000 - 15
-  console.log('✓ Chance card resolves and applies effect successfully.');
-
-  // 7. Debt & Bankruptcy
-  // Setup debt: land on owned property and go negative
-  state.gameSpecificState.properties[6].ownerId = 'p2';
-  state.gameSpecificState.properties[6].houses = 1; // rent = 30
-  state.gameSpecificState.properties[6].mortgaged = false;
-  state.gameSpecificState.positions['p1'] = 0;
-  state.gameSpecificState.cash['p1'] = 10;
-  state.gameSpecificState.doubleRollCount = 0;
-  state.activePlayerId = 'p1';
-  state.turnIndex = 0;
-  state.subState = 'WAITING_FOR_ROLL';
-  manager.setCurrentState(state);
-
-  mockRoll(3); // rolls 6, lands on Oriental Avenue index 6
-  action = { type: 'ROLL_DICE', playerId: 'p1', payload: {}, timestamp: Date.now() };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
-  assert.strictEqual(state.gameSpecificState.cash['p1'], -20);
+  state.gameSpecificState.properties[5].ownerId = 'p2';
+  state.gameSpecificState.properties[5].houses = 1;
+  state.gameSpecificState.cash.p1 = 10;
+  turn('p1', 1);
+  mockRoll(2);
+  act('ROLL_DICE');
+  assert.strictEqual(state.gameSpecificState.cash.p1, -20);
   assert.strictEqual(state.subState, 'DEBT_OR_BANKRUPT');
-  console.log('✓ Debt state triggers when cash falls below 0.');
-
-  // Declare Bankruptcy
-  action = {
-    type: 'DECLARE_BANKRUPTCY',
-    playerId: 'p1',
-    payload: {},
-    timestamp: Date.now()
-  };
-  result = manager.handleIncomingAction(action);
-  state = manager.getCurrentState() as MonopolyState;
+  act('DECLARE_BANKRUPTCY');
   assert.strictEqual(state.status, 'GAME_OVER');
   assert.strictEqual(state.winnerId, 'p2');
-  assert.strictEqual(state.gameSpecificState.bankrupt['p1'], true);
-  console.log('✓ Bankruptcy eliminates player and ends game if one remains.');
+  console.log('✓ Debt and bankruptcy eliminate a player and declare the winner.');
+  clearMockRoll();
 }
 
 /**

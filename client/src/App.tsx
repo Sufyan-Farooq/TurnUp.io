@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
-import { MessageCircle, PanelRightOpen, WifiOff, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MessageCircle, PanelRightOpen, WifiOff, X } from 'lucide-react';
 
 import { BoardWrapper } from './components/BoardWrapper';
 import { Button, useToast } from './components/ui';
@@ -158,6 +158,8 @@ export default function App() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [roomRailTab, setRoomRailTab] = useState<'chat' | 'activity'>('chat');
+  const [isRoomConversationExpanded, setIsRoomConversationExpanded] = useState(false);
+  const [monopolyRailTab, setMonopolyRailTab] = useState<'players' | 'properties' | 'chat' | 'activity'>('players');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [showGameTypeModal, setShowGameTypeModal] = useState(false);
@@ -267,6 +269,10 @@ export default function App() {
   transportConnectRef.current = roomApi.handleTransportConnect;
 
   const room = roomApi.room;
+  const monopolyRail = room?.gameType === 'MONOPOLY' && !inLobby;
+  const activeRailTab = monopolyRail ? monopolyRailTab : roomRailTab;
+  const isRailChatVisible = activeRailTab === 'chat' && (monopolyRail || inLobby || isRoomConversationExpanded) &&
+    (!window.matchMedia(monopolyRail ? '(max-width: 900px)' : '(max-width: 1100px)').matches || monopolyRail && isRightSidebarOpen);
 
   // Refs so socket listeners / async callbacks always read fresh values.
   const roomRef = useRef(room);
@@ -312,13 +318,19 @@ export default function App() {
   // Deep link / refresh on /room/:id — the transport-connect session resume
   // gets first shot; if it did not put us in a room, join explicitly.
   useEffect(() => {
-    if (!routeRoomId || !isConnected || !currentUser || room) return;
+    if (!routeRoomId) {
+      joinAttemptedRef.current = null;
+      return;
+    }
+    if (!isConnected || !currentUser || room) return;
     if (joinAttemptedRef.current === routeRoomId) return;
     joinAttemptedRef.current = routeRoomId;
 
     const timer = setTimeout(() => {
       if (roomRef.current) return;
       void roomApi.joinRoom(routeRoomId).then(res => {
+        const currentPathRoom = window.location.pathname.match(/^\/(?:room|join)\/([^/]+)/);
+        if (!currentPathRoom || decodeURIComponent(currentPathRoom[1]).toUpperCase() !== routeRoomId) return;
         if (res.success) {
           applyJoinResult(res);
         } else {
@@ -351,8 +363,7 @@ export default function App() {
     const onChatMessage = (data: { playerId: string }) => {
       if (data.playerId !== playerId) {
         playSound(SOUNDS.chatIn);
-        const compact = window.matchMedia('(max-width: 1100px)').matches;
-        if ((compact && !isLeftSidebarOpen) || (!compact && roomRailTab !== 'chat')) {
+        if (!isLeftSidebarOpen && !isRailChatVisible) {
           setUnreadChatCount(count => count + 1);
         }
       }
@@ -375,7 +386,7 @@ export default function App() {
       socket.off('game_ended', onGameEnded);
       socket.off('chat_message', onChatMessage);
     };
-  }, [socket, appendLog, getPlayerName, playerId, isLeftSidebarOpen, roomRailTab]);
+  }, [socket, appendLog, getPlayerName, playerId, isLeftSidebarOpen, isRailChatVisible]);
 
   // ── Seed the log whenever a *new* game begins (start / rematch / resume) ──
   const activeGameId = game.gameState?.gameId;
@@ -489,13 +500,13 @@ export default function App() {
     for (const anchor of [chatEndRef.current, mobileChatEndRef.current]) {
       if (anchor?.offsetParent) anchor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [roomApi.chatMessages]);
+  }, [roomApi.chatMessages, activeRailTab, isRightSidebarOpen, isRoomConversationExpanded]);
 
   useEffect(() => {
-    if (isLeftSidebarOpen || roomRailTab === 'chat' && !window.matchMedia('(max-width: 1100px)').matches) {
+    if (isLeftSidebarOpen || isRailChatVisible) {
       setUnreadChatCount(0);
     }
-  }, [isLeftSidebarOpen, roomRailTab]);
+  }, [isLeftSidebarOpen, isRailChatVisible]);
 
   // ── Lobby appearance: keep the pre-selected swatch valid & available ─────
   const maxPlayersSetting: number = room?.lobbySettings?.maxPlayers || 4;
@@ -604,11 +615,12 @@ export default function App() {
     setIsDrawerOpen(false);
     setUnreadChatCount(0);
     setRoomRailTab('chat');
+    setMonopolyRailTab('players');
     setChatSendError(null);
     void roomApi.leaveRoom();
     game.setGameState(null);
     seededGameIdRef.current = null;
-    joinAttemptedRef.current = null;
+    joinAttemptedRef.current = room?.id ?? null;
     lastActivePlayerIdRef.current = null;
     setInLobby(false);
     setInGame(false);
@@ -1028,7 +1040,7 @@ export default function App() {
         {/* Right sidebar */}
         <div
           id="desktop-sidebar"
-          className={`game-sidebar ${inLobby ? 'game-sidebar--lobby' : ''} ${isRightSidebarOpen ? 'open' : ''}`}
+          className={`game-sidebar ${inLobby ? 'game-sidebar--lobby' : ''} ${monopolyRail ? 'game-sidebar--monopoly' : ''} ${!inLobby && !monopolyRail ? 'game-sidebar--play' : ''} ${isRightSidebarOpen ? 'open' : ''}`}
           role={isRightSidebarOpen ? 'dialog' : 'complementary'}
           aria-modal={isRightSidebarOpen ? 'true' : undefined}
           aria-label={inLobby ? 'Lobby controls' : 'Game details'}
@@ -1048,7 +1060,38 @@ export default function App() {
               <X size={20} aria-hidden="true" />
             </button>
           </div>
-          <div className="room-rail__primary">{inLobby ? (
+          {monopolyRail && (
+            <div className="room-rail__tabs monopoly-rail-tabs" role="tablist" aria-label="Monopoly game panels">
+              {(['players', 'properties', 'chat', 'activity'] as const).map((tab, index, tabs) => (
+                <button key={tab} id={`monopoly-tab-${tab}`} type="button" role="tab"
+                  aria-selected={monopolyRailTab === tab}
+                  aria-controls={tab === 'players' || tab === 'properties' ? 'monopoly-panel-details' : 'monopoly-panel-conversation'}
+                  tabIndex={monopolyRailTab === tab ? 0 : -1}
+                  className={monopolyRailTab === tab ? 'is-active' : ''}
+                  onClick={() => setMonopolyRailTab(tab)}
+                  onKeyDown={event => {
+                    let next = index;
+                    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+                    else if (event.key === 'Home') next = 0;
+                    else if (event.key === 'End') next = tabs.length - 1;
+                    else return;
+                    event.preventDefault();
+                    setMonopolyRailTab(tabs[next]);
+                    document.getElementById(`monopoly-tab-${tabs[next]}`)?.focus();
+                  }}>
+                  {tab === 'players' ? 'Players' : tab === 'properties' ? 'Properties' : tab === 'chat' ? 'Chat' : 'Log'}
+                  {tab === 'chat' && unreadChatCount > 0 && <span className="room-rail__unread">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="room-rail__primary"
+            hidden={monopolyRail && (monopolyRailTab === 'chat' || monopolyRailTab === 'activity')}
+            role={monopolyRail ? 'tabpanel' : undefined}
+            id={monopolyRail ? 'monopoly-panel-details' : undefined}
+            aria-labelledby={monopolyRail ? `monopoly-tab-${monopolyRailTab}` : undefined}
+            tabIndex={monopolyRail ? 0 : undefined}>{inLobby ? (
             <WaitingRoomSidebar
               room={room}
               currentPlayerId={playerId}
@@ -1068,6 +1111,7 @@ export default function App() {
           ) : isMonopoly ? (
             <Suspense fallback={<GameChunkFallback />}>
               <MonopolySidebar
+                view={monopolyRailTab === 'properties' ? 'properties' : 'players'}
                 gameState={gameStateForBoard as unknown as MonopolyGameState}
                 room={room as unknown as MonopolyRoom}
                 currentUserId={playerId}
@@ -1104,15 +1148,27 @@ export default function App() {
             <div className="game-action-dock game-action-dock--rail"><Suspense fallback={null}>{renderActionBar()}</Suspense></div>
           )}
 
-          <div className="room-rail__secondary">
-            <div className="room-rail__tabs" role="tablist" aria-label="Room conversation and activity">
-              <button type="button" role="tab" aria-selected={roomRailTab === 'chat'} onClick={() => setRoomRailTab('chat')} className={roomRailTab === 'chat' ? 'is-active' : ''}>
+          <div className={`room-rail__secondary ${!inLobby && !monopolyRail && !isRoomConversationExpanded ? 'is-collapsed' : ''}`} hidden={monopolyRail && (monopolyRailTab === 'players' || monopolyRailTab === 'properties')}>
+            {!monopolyRail && <div className="room-rail__tabs" role="tablist" aria-label="Room conversation and activity">
+              <button type="button" role="tab" aria-selected={roomRailTab === 'chat'} onClick={() => { setRoomRailTab('chat'); setIsRoomConversationExpanded(true); }} className={roomRailTab === 'chat' ? 'is-active' : ''}>
                 Chat {unreadChatCount > 0 && <span className="room-rail__unread">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
               </button>
-              <button type="button" role="tab" aria-selected={roomRailTab === 'activity'} onClick={() => setRoomRailTab('activity')} className={roomRailTab === 'activity' ? 'is-active' : ''}>Match log</button>
-            </div>
-            <div className="room-rail__tab-panel" role="tabpanel">
-              {roomRailTab === 'chat' ? (
+              <button type="button" role="tab" aria-selected={roomRailTab === 'activity'} onClick={() => { setRoomRailTab('activity'); setIsRoomConversationExpanded(true); }} className={roomRailTab === 'activity' ? 'is-active' : ''}>Match log</button>
+            </div>}
+            {!inLobby && !monopolyRail && (
+              <button type="button" className="room-rail__conversation-toggle"
+                aria-expanded={isRoomConversationExpanded} aria-controls="room-panel-conversation"
+                aria-label={isRoomConversationExpanded ? 'Collapse conversation panel' : 'Expand conversation panel'}
+                onClick={() => setIsRoomConversationExpanded(expanded => !expanded)}>
+                {isRoomConversationExpanded ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronUp size={16} aria-hidden="true" />}
+              </button>
+            )}
+            <div className="room-rail__tab-panel" role="tabpanel"
+              hidden={!inLobby && !monopolyRail && !isRoomConversationExpanded}
+              id={monopolyRail ? 'monopoly-panel-conversation' : 'room-panel-conversation'}
+              aria-labelledby={monopolyRail ? `monopoly-tab-${monopolyRailTab}` : undefined}
+              tabIndex={monopolyRail ? 0 : undefined}>
+              {activeRailTab === 'chat' ? (
                 <LeftSidebar
                   roomId={room.id}
                   isOpen={false}
