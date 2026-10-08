@@ -203,13 +203,16 @@ describe('Full room -> game flow (socket.io integration)', () => {
     expect(guestUpdate).toEqual(expect.objectContaining({ success: false }));
 
     const hostUpdate: any = await emitWithAck(hostClient, 'update_lobby_settings', {
-      settings: { startingCash: 2500, auction: true, maxPlayers: 3, unknownRule: true }
+      settings: { startingCash: 2500, auction: true, maxPlayers: 3, botSpeed: 'fast', unknownRule: true }
     });
     expect(hostUpdate).toEqual(expect.objectContaining({
       success: true,
       settings: expect.objectContaining({ startingCash: 2500, auction: true, maxPlayers: 3 })
     }));
     expect(hostUpdate.settings.unknownRule).toBeUndefined();
+    expect(hostUpdate.settings.botSpeed).toBe('fast');
+    const invalidSpeed: any = await emitWithAck(hostClient, 'update_lobby_settings', { settings: { botSpeed: 'instant' } });
+    expect(invalidSpeed.settings.botSpeed).toBe('fast');
 
     await emitWithAck(guestClient, 'toggle_ready');
     const startedPromise = waitForEvent<any>(hostClient, 'game_started');
@@ -220,6 +223,7 @@ describe('Full room -> game flow (socket.io integration)', () => {
     const payload = await startedPromise;
     expect(payload.gameState.gameSpecificState.config).toEqual(expect.objectContaining({
       startingCash: 2500,
+      botSpeed: 'fast',
       auction: true
     }));
     expect(payload.gameState.gameSpecificState.cash['settings-host']).toBe(2500);

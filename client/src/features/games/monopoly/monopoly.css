@@ -574,3 +574,9 @@
 .monopoly-trade-minimize-text-btn:hover {
   color: #f5e7d1;
 }
+.monopoly-property-group { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.monopoly-property-group + .monopoly-property-group { margin-top: 16px; }
+.monopoly-property-group-heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; color: var(--cloud); font-size: 14px; }
+.monopoly-property-group-heading span { white-space: nowrap; color: var(--gold); font-size: 12px; }
+.monopoly-set-progress { margin: 0 0 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.monopoly-announcement { max-width: 400px; min-height: 38px; margin: 2px auto 10px; color: var(--gold); font-size: 14px; line-height: 1.5; text-align: center; }

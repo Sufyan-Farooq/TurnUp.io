@@ -248,6 +248,7 @@ export interface MonopolyState extends GameState {
     auctionOriginPlayerId?: string;
     activeTrade?: TradeOffer;
     config: {
+      botSpeed?: 'normal' | 'fast';
       startingCash: number;
       doubleRentRule: boolean;
       vacationCash: boolean;
@@ -325,6 +326,7 @@ export class MonopolyRuleset implements IGameRuleset<MonopolyState> {
         debtAmount: 0,
         vacationCashPool: 0,
         config: {
+          botSpeed: config.botSpeed === 'fast' ? 'fast' : 'normal',
           startingCash: startingCashVal,
           doubleRentRule: config.doubleRentRule !== undefined ? !!config.doubleRentRule : true,
           vacationCash: config.vacationCash !== undefined ? !!config.vacationCash : false,

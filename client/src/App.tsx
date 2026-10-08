@@ -840,6 +840,7 @@ export default function App() {
                 setTradeModalInitialRequestProp(propIdx ?? null);
               }}
               recentLogs={gameLog}
+              eventUpdate={game.lastUpdate}
             />
           </BoardWrapper>
         );

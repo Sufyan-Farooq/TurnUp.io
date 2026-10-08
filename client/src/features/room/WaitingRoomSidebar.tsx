@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: LobbySettings = {
   maxPlayers: 4,
   privateRoom: false,
   allowBots: false,
+  botSpeed: 'normal',
   startingCash: 1500,
   doubleRentRule: true,
   vacationCash: false,
@@ -259,6 +260,12 @@ export const WaitingRoomSidebar: React.FC<WaitingRoomSidebarProps> = ({
 
           <ToggleRow id="private-room" label="Private room" description="Hide this room from the public room browser." checked={settings.privateRoom} disabled={isEditingDisabled} onChange={value => update('privateRoom', value)} />
           <ToggleRow id="allow-bots" label="Fill empty seats with bots" description="Bots occupy open seats when the match starts." checked={settings.allowBots} disabled={isEditingDisabled} onChange={value => update('allowBots', value)} badge={<Badge variant="red">Beta</Badge>} />
+          {room?.gameType === 'MONOPOLY' && <div className="lobby-setting-row">
+            <div className="lobby-setting-copy"><label htmlFor="bot-speed" className="lobby-setting-label">Bot speed</label><p id="bot-speed-description" className="lobby-setting-description">Normal gives you more time to follow decisions. Both speeds wait for pawn movement.</p></div>
+            <select id="bot-speed" className="lobby-setting-select" value={settings.botSpeed} disabled={isEditingDisabled} aria-describedby="bot-speed-description" onChange={event => update('botSpeed', event.target.value as 'normal' | 'fast')}>
+              <option value="normal">Normal</option><option value="fast">Fast</option>
+            </select>
+          </div>}
         </section>
 
         {room?.gameType === 'MONOPOLY' && (

@@ -10,6 +10,8 @@ import { getMonopolyTokenSlot } from './tokenGeometry';
 import { getMonopolyStepPath } from './monopolyPath';
 import type { MonopolyGameState, MonopolyRoom } from './types';
 import './monopoly.css';
+import type { GameStateUpdate } from '../../../types/game';
+import { MonopolyAnnouncements } from './MonopolyAnnouncements';
 
 export interface MonopolyBoardProps {
   gameState: MonopolyGameState;
@@ -30,6 +32,7 @@ export interface MonopolyBoardProps {
   onOpenTradeWith?: (targetPlayerId: string, initialRequestedProp?: number) => void;
   /** Optional trailing game-log lines shown under the dice in the center panel. */
   recentLogs?: string[];
+  eventUpdate?: GameStateUpdate | null;
 }
 
 const getSolidColor = (c: string, fallback: string): string => {
@@ -70,7 +73,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
   onBid,
   onFold,
   onOpenTradeWith,
-  recentLogs = []
+  recentLogs = [], eventUpdate
 }) => {
   const [selectedSpaceIndex, setSelectedSpaceIndex] = useState<number | null>(null);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
@@ -234,6 +237,7 @@ export const MonopolyBoard: React.FC<MonopolyBoardProps> = ({
 
         <div className="monopoly-center-content">
           <h1 className="monopoly-title">Mr. Worldwide</h1>
+          <MonopolyAnnouncements update={eventUpdate} room={room} />
           <div className={`monopoly-turn-status${isMyTurn ? ' is-mine' : ''}`} role="status" aria-live="polite">
             {isMyTurn ? 'Your move' : `${activePlayerName} is making a move`}
           </div>

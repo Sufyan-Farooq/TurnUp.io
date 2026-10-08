@@ -42,6 +42,7 @@ export interface TradeOffer {
 }
 
 export interface MonopolyConfig {
+  botSpeed?: 'normal' | 'fast';
   startingCash: number;
   doubleRentRule: boolean;
   vacationCash: boolean;

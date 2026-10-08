@@ -5,12 +5,16 @@ const CASH_RESERVE = 150;
 
 /** Keep each broadcast readable, with extra thinking time for trade replies. */
 export function getMonopolyBotDelay(state: GameState, random = Math.random, previousAction?: GameAction): number {
-  const thinkingTime = state.gameSpecificState.activeTrade ? 2400 + random() * 1500 : 1600 + random() * 1400;
+  const fast = state.gameSpecificState.config?.botSpeed === 'fast';
+  const thinkingTime = state.gameSpecificState.activeTrade
+    ? (fast ? 1200 + random() * 900 : 2400 + random() * 1500)
+    : (fast ? 650 + random() * 650 : 1600 + random() * 1400);
   // Allow the preceding roll to settle before buying, trading, or rolling again.
   const dice = state.gameSpecificState.lastRoll as [number, number] | undefined;
   const animationTime = previousAction?.type === 'ROLL_DICE' && dice
     ? 720 + (dice[0] + dice[1]) * 170 + 40 : 0;
-  return thinkingTime + animationTime;
+  // Fast still leaves room for a card warp that travels further than the dice.
+  return previousAction?.type === 'ROLL_DICE' ? Math.max(2300, thinkingTime + animationTime) : thinkingTime;
 }
 const groups = [...new Set(MONOPOLY_BOARD.flatMap(space => space.group ? [space.group] : []))]
   .map(group => MONOPOLY_BOARD.flatMap((space, index) => space.group === group ? [index] : []));

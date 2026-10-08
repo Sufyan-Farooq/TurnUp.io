@@ -26,6 +26,7 @@ export interface LobbySettings {
   maxPlayers: number;
   privateRoom: boolean;
   allowBots: boolean;
+  botSpeed: 'normal' | 'fast';
   startingCash: number;
   doubleRentRule: boolean;
   vacationCash: boolean;

@@ -37,6 +37,16 @@ describe('Monopoly bot strategy', () => {
     expect(getMonopolyBotDelay(state, () => 1, roll)).toBe(5800);
     expect(getMonopolyBotDelay(state, () => 0, { ...roll, type: 'BUY_PROPERTY' })).toBe(1600);
   });
+  it('uses shorter random pauses in Fast mode while preserving movement time', () => {
+    const state = game({ botSpeed: 'fast' }).getCurrentState() as MonopolyState;
+    expect(getMonopolyBotDelay(state, () => 0)).toBe(650);
+    expect(getMonopolyBotDelay(state, () => 1)).toBe(1300);
+    state.gameSpecificState.lastRoll = [1, 1];
+    const roll = { type: 'ROLL_DICE', playerId: 'bot-a', payload: {}, timestamp: 0 };
+    expect(getMonopolyBotDelay(state, () => 0, roll)).toBe(2300);
+    state.gameSpecificState.lastRoll = [6, 6];
+    expect(getMonopolyBotDelay(state, () => 0, roll)).toBe(3450);
+  });
 
   it.each([false, true])('settles off-turn negative cash before the next player rolls (previous player bankrupt: %s)', bankruptcy => {
     const engine = game();

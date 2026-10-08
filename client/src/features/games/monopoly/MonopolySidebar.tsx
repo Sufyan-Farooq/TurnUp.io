@@ -6,6 +6,7 @@ import type { VoteKickState } from '../../room/types';
 import './monopoly.css';
 import { getPlayerInitial } from '../../../theme/playerIdentity';
 import { getAppearanceColor } from '../../../theme/playerColors';
+import { groupPortfolio, buildingBlockReason } from './portfolio';
 
 export interface MonopolySidebarProps {
   view: 'players' | 'properties';
@@ -36,6 +37,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
   const myOwnedProperties = Object.entries(properties)
     .map(([idx, prop]) => ({ index: parseInt(idx, 10), prop }))
     .filter(item => item.prop.ownerId === currentUserId);
+  const portfolioGroups = groupPortfolio(MONOPOLY_BOARD, gameState, currentUserId);
 
   return (
     <aside className="monopoly-sidebar" aria-label="Monopoly players and property portfolio">
@@ -100,12 +102,17 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
       <div className="monopoly-property-list">
         {myOwnedProperties.length === 0 ? (
           <div className="monopoly-empty-properties">Your portfolio is empty. Land on an available property to start building it.</div>
-        ) : myOwnedProperties.map(({ index, prop }) => {
+        ) : portfolioGroups.map(group => <section key={group.key} className="monopoly-property-group" aria-label={`${group.label} set`}>
+          <header className="monopoly-property-group-heading"><strong>{group.label}</strong><span>{group.owned.length}/{group.indices.length} owned</span></header>
+          <p className="monopoly-set-progress">{group.missing.length ? `Missing: ${group.missing.map(index => MONOPOLY_BOARD[index].name).join(', ')}` : 'Complete set'}</p>
+          {group.owned.map(index => {
+          const prop = properties[index];
           const space = MONOPOLY_BOARD[index];
           const isStreet = space.type === 'property';
           const colorCode = colorGroupMap[space.group || ''] || 'var(--gold)';
           const mortgageValue = Math.round(space.mortgageValue ?? (space.price || 0) * 0.5);
           const unmortgageValue = Math.round(mortgageValue * 1.1);
+          const buildReason = isStreet ? buildingBlockReason(MONOPOLY_BOARD, gameState, currentUserId, index) : undefined;
           return (
             <article key={index} className="monopoly-property-card" style={{ '--property-color': colorCode } as React.CSSProperties}>
               <div className="monopoly-property-card-header">
@@ -131,7 +138,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
                       title={prop.houses > 0 ? 'Sell buildings before mortgaging' : undefined}>Mortgage · ${mortgageValue}</button>
                   )}
                   {isStreet && prop.houses < 5 && (
-                    <button type="button" onClick={() => onBuildHouse(index)} disabled={currentUserCash < (space.houseCost ?? 0)} className="btn-primary">Build · ${space.houseCost}</button>
+                    <button type="button" onClick={() => onBuildHouse(index)} disabled={!!buildReason} title={buildReason} className="btn-primary">Build · ${space.houseCost}</button>
                   )}
                   {isStreet && prop.houses > 0 && (
                     <button type="button" onClick={() => onSellHouse(index)} className="btn-secondary">Sell building · ${Math.round((space.houseCost || 0) / 2)}</button>
@@ -140,7 +147,7 @@ export const MonopolySidebar: React.FC<MonopolySidebarProps> = ({
               </div>
             </article>
           );
-        })}
+        })}</section>)}
       </div>
       </>}
     </aside>

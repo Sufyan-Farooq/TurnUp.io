@@ -1861,6 +1861,7 @@ const BASE_LOBBY_SETTINGS = {
   maxPlayers: 4,
   privateRoom: false,
   allowBots: false,
+  botSpeed: 'normal',
   startingCash: 1500,
   doubleRentRule: true,
   vacationCash: false,
@@ -1905,6 +1906,7 @@ function sanitizeLobbySettings(
   for (const key of BOOLEAN_LOBBY_SETTINGS) {
     if (typeof source[key] === 'boolean') next[key] = source[key];
   }
+  if (source.botSpeed === 'normal' || source.botSpeed === 'fast') next.botSpeed = source.botSpeed;
 
   if (typeof source.startingCash === 'number' && [1000, 1500, 2000, 2500].includes(source.startingCash)) {
     next.startingCash = source.startingCash;
