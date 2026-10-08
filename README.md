@@ -231,6 +231,8 @@ PostgreSQL data is retained in the `postgres-data` volume.
 
 ## Kubernetes deployment
 
+The live Oracle deployment uses GitHub Actions and Docker Compose. See [Oracle CI/CD setup](deploy/oracle/README.md) for deployment, health checks, backups, and rollback.
+
 [`deployment.yml`](./deployment.yml) contains PostgreSQL, server, client,
 Services, probes, resource bounds, persistent storage, and an nginx Ingress.
 Before applying it:

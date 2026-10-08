@@ -1,0 +1,119 @@
+name: Test and deploy to Oracle
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: turnup-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+      JWT_SECRET: ci-only-secret-not-for-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+            remotion-demo/package-lock.json
+      - run: npm ci --prefix client
+      - run: npm ci --prefix server
+      - run: npm run lint --prefix client
+      - run: node --test client/tests/*.test.mjs
+      - run: npm run build --prefix client
+      - run: npm run build --prefix server
+      - run: npm test --prefix server -- --runInBand
+      - run: node server/dist/engine/simulation.js
+      - run: npm ci --prefix remotion-demo
+      - run: remotion-demo/node_modules/.bin/tsc --project remotion-demo/tsconfig.json --noEmit
+      - name: Validate deployment scripts
+        run: bash -n deploy/oracle/deploy.sh
+
+  images:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [client, server]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/sufyan-farooq/turnup.io-${{ matrix.service }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/Sufyan-Farooq/TurnUp.io
+          cache-from: type=gha,scope=${{ matrix.service }}-arm64
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-arm64
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://turnup.sufyanfarooq.com
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Deploy the tested commit
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.ORACLE_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.ORACLE_HOST }}
+          DEPLOY_USER: ${{ vars.ORACLE_USER }}
+          RELEASE_SHA: ${{ github.sha }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${SSH_KEY:?Missing ORACLE_SSH_KEY}" "${KNOWN_HOSTS:?Missing ORACLE_KNOWN_HOSTS}"
+          : "${DEPLOY_HOST:?Missing ORACLE_HOST}" "${DEPLOY_USER:?Missing ORACLE_USER}"
+          install -m 700 -d "$RUNNER_TEMP/turnup-ssh"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/turnup-ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/turnup-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/turnup-ssh/key"
+          trap 'rm -f "$RUNNER_TEMP/turnup-ssh/key"' EXIT
+          printf '%s\n%s\n' "$RELEASE_SHA" "$REGISTRY_TOKEN" |
+            ssh -T -i "$RUNNER_TEMP/turnup-ssh/key" \
+              -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$RUNNER_TEMP/turnup-ssh/known_hosts" \
+              "$DEPLOY_USER@$DEPLOY_HOST"
+      - name: Check public HTTPS and Socket.IO
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 https://turnup.sufyanfarooq.com/ > /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 https://turnup.sufyanfarooq.com/api/health/ready
+          curl --fail --silent --show-error 'https://turnup.sufyanfarooq.com/socket.io/?EIO=4&transport=polling' | grep -q '^0{"sid"'

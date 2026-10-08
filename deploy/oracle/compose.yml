@@ -1,0 +1,48 @@
+name: turnup
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  server:
+    image: ghcr.io/sufyan-farooq/turnup.io-server:${RELEASE_SHA:?required}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?required}
+      PORT: 3000
+      CORS_ORIGIN: https://turnup.sufyanfarooq.com
+      TRUST_PROXY: 'true'
+    stop_grace_period: 30s
+    expose: ['3000']
+    logging: *logging
+  client:
+    image: ghcr.io/sufyan-farooq/turnup.io-client:${RELEASE_SHA:?required}
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports: ['127.0.0.1:8080:80']
+    logging: *logging
+volumes:
+  postgres-data:
+    external: true
+    name: turnup_postgres-data
